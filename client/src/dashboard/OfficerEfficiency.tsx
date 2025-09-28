@@ -1,38 +1,38 @@
-interface Officer {
-  name: string;
-  onTime: string;
-  avgHold: string;
+import React from "react";
+
+interface FileData {
+  id: string;
+  currentHolder: string;
+  ageDays: number;
 }
 
-const officers: Officer[] = [
-  { name: "Officer 1", onTime: "95%", avgHold: "1.2h" },
-  { name: "Officer 2", onTime: "88%", avgHold: "2.1h" },
-];
+interface OfficerEfficiencyProps {
+  files: FileData[];
+}
 
-function OfficerEfficiency() {
+const OfficerEfficiency: React.FC<OfficerEfficiencyProps> = ({ files }) => {
+  const officerMap: Record<string, { total: number; overdue: number }> = {};
+
+  files.forEach(f => {
+    if (!officerMap[f.currentHolder]) officerMap[f.currentHolder] = { total: 0, overdue: 0 };
+    officerMap[f.currentHolder].total += 1;
+    if (f.ageDays > 5) officerMap[f.currentHolder].overdue += 1;
+  });
+
   return (
-    <div className="bg-gray-50 p-6 rounded-lg shadow mb-6">
-      <h3 className="text-lg font-semibold mb-4">Officer Efficiency</h3>
-      <table className="min-w-full border-collapse border border-gray-300">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="border px-3 py-2">Officer</th>
-            <th className="border px-3 py-2">On-time %</th>
-            <th className="border px-3 py-2">Avg Hold Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          {officers.map((o, i) => (
-            <tr key={i} className="text-center">
-              <td className="border px-3 py-2">{o.name}</td>
-              <td className="border px-3 py-2">{o.onTime}</td>
-              <td className="border px-3 py-2">{o.avgHold}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mb-6">
+      <h2 className="text-xl font-semibold mb-2">Officer Efficiency</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        {Object.entries(officerMap).map(([officer, stats], i) => (
+          <div key={i} className="bg-white p-4 rounded shadow text-center">
+            <p className="font-semibold">{officer}</p>
+            <p>Total Files: {stats.total}</p>
+            <p className="text-red-600">Overdue: {stats.overdue}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
-}
+};
 
 export default OfficerEfficiency;

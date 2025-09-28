@@ -1,28 +1,41 @@
-interface DelayFile {
+import React from "react";
+
+interface FileData {
+  id: string;
   fileNo: string;
-  owner: string;
-  age: string;
+  currentHolder: string;
+  ageDays: number;
+  slaStatus: string;
 }
 
-const delayedFiles: DelayFile[] = [
-  { fileNo: "ACC-20250928-01", owner: "Officer 1", age: "3d 4h" },
-  { fileNo: "ACC-20250927-08", owner: "Officer 2", age: "2d 6h" },
-];
+interface DelayBarProps {
+  files: FileData[];
+}
 
-function DelayBar() {
+const DelayBar: React.FC<DelayBarProps> = ({ files }) => {
+  const delayedFiles = files.filter(f => f.slaStatus === "Warning" || f.slaStatus === "Breach");
+
   return (
-    <div className="bg-gray-50 p-6 rounded-lg shadow mb-6">
-      <h3 className="text-lg font-semibold mb-4">Longest Delays</h3>
-      <ul className="space-y-2">
-        {delayedFiles.map((file, i) => (
-          <li key={i} className="flex justify-between bg-white p-3 rounded shadow">
-            <span>{file.fileNo} ({file.owner})</span>
-            <span className="text-red-600 font-semibold">{file.age}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="mb-6">
+      <h2 className="text-xl font-semibold mb-2">Longest Delays</h2>
+      <div className="bg-white rounded shadow p-4">
+        {delayedFiles.length === 0 ? (
+          <p>No delayed files</p>
+        ) : (
+          <ul className="space-y-2">
+            {delayedFiles.map(f => (
+              <li key={f.id} className="flex justify-between border-b py-1">
+                <span>{f.fileNo} - {f.currentHolder}</span>
+                <span className={`font-semibold ${f.slaStatus === "Breach" ? "text-red-600" : "text-yellow-600"}`}>
+                  {f.slaStatus}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
-}
+};
 
 export default DelayBar;

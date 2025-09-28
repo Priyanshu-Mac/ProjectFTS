@@ -5,7 +5,7 @@ import LandingPage from "./pages/LandingPage/LandingPage";
 import FileIntakePage from "./pages/FileIntake/FileIntakePage";
 import FileMovementPage from "./pages/FileMovement/FileMovementPage";
 import COFReviewPage from "./pages/COFReview/COFFinalReviewPage";
-import DashboardPage from "./pages/Dashboard/DashboardPage";
+import DashboardPageComponent from "./dashboard/DashboardPage.tsx";
 import NotFound from "./pages/NotFound";
 
 function App() {
@@ -17,7 +17,7 @@ function App() {
         <Route path="/file-intake" element={<FileIntakePage />} />
         <Route path="/file-movement" element={<FileMovementPage />} />
         <Route path="/cof-review" element={<COFReviewPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<DashboardPageComponent />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Footer />

@@ -1,16 +1,18 @@
+import React from "react";
+
 interface Kpi {
   label: string;
   value: string | number;
 }
 
 const kpis: Kpi[] = [
-  { label: "Files in Accounts Today", value: 25 },
+  { label: "Files Today", value: 25 },
   { label: "Total Open Files", value: 112 },
   { label: "% On-time This Week", value: "92%" },
-  { label: "Avg TAT (Business Days)", value: 3.4 },
+  { label: "Avg TAT (Days)", value: 3.4 },
 ];
 
-function KpiStrip() {
+const KpiStrip: React.FC = () => {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       {kpis.map((kpi, i) => (
@@ -21,6 +23,6 @@ function KpiStrip() {
       ))}
     </div>
   );
-}
+};
 
 export default KpiStrip;
