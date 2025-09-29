@@ -1,0 +1,177 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
+
+// Components
+import Layout from './components/common/Layout';
+import ProtectedRoute from './components/common/ProtectedRoute';
+
+// Pages
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+
+// Services
+import { authService } from './services/authService';
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
+        <div className="App">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            
+            {/* Protected Routes */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DashboardPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* File Intake - Clerk and Admin only */}
+            <Route
+              path="/file-intake"
+              element={
+                <ProtectedRoute allowedRoles={['clerk', 'admin']}>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">File Intake</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* My Files - Officers and above */}
+            <Route
+              path="/my-files"
+              element={
+                <ProtectedRoute allowedRoles={['accounts_officer', 'cof', 'admin']}>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">My Files</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* File Search - All roles */}
+            <Route
+              path="/file-search"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">File Search</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* COF Review - COF and Admin only */}
+            <Route
+              path="/cof-review"
+              element={
+                <ProtectedRoute allowedRoles={['cof', 'admin']}>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">COF Review</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Analytics - COF and Admin only */}
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute allowedRoles={['cof', 'admin']}>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Master Data - Admin only */}
+            <Route
+              path="/master-data"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout>
+                    <div className="text-center py-12">
+                      <h2 className="text-2xl font-bold text-gray-900">Master Data</h2>
+                      <p className="text-gray-600 mt-2">Coming soon...</p>
+                    </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            
+            {/* Catch all route */}
+            <Route 
+              path="*" 
+              element={
+                authService.isAuthenticated() ? (
+                  <Navigate to="/" replace />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              } 
+            />
+          </Routes>
+          
+          {/* Toast notifications */}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 4000,
+              style: {
+                background: '#363636',
+                color: '#fff',
+              },
+              success: {
+                style: {
+                  background: '#10b981',
+                },
+              },
+              error: {
+                style: {
+                  background: '#ef4444',
+                },
+              },
+            }}
+          />
+        </div>
+      </Router>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
