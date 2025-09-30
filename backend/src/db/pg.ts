@@ -217,11 +217,10 @@ export async function findUserByUsername(username: string) {
   const r = await pool.query('SELECT * FROM users WHERE username = $1 LIMIT 1', [username]);
   return r.rows[0] || null;
 }
-// TO FIX TIS ISI
-export async function createUser(payload: { username: string; name: string; password_hash: string }) {
+export async function createUser(payload: { username: string; name: string; password_hash: string; role?: string; office_id?: number | null }) {
   const q = `INSERT INTO users(username, name, role, office_id) VALUES($1,$2,$3,$4) RETURNING *`;
-  // default role is Clerk unless specified elsewhere; office_id left null
-  const vals = [payload.username, payload.name, 'Clerk', null];
+  // take role/office_id from payload, default role to 'Clerk' and office_id to null
+  const vals = [payload.username, payload.name, payload.role || 'Clerk', payload.office_id ?? null];
   const r = await pool.query(q, vals);
   // store password_hash in users table if column exists; try to update password_hash column
   try {
