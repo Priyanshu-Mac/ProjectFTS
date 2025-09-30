@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Default to the auth server running on localhost:3000. If you deploy or run the API
+// on a different origin, set VITE_API_BASE_URL in your .env (e.g. VITE_API_BASE_URL="http://api.example.com").
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 // Create axios instance
 const api = axios.create({

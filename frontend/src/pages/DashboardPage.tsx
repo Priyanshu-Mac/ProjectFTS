@@ -10,6 +10,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { dashboardService } from '../services/dashboardService';
+import { fileService } from '../services/fileService';
 import { authService } from '../services/authService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import StatusBadge from '../components/common/StatusBadge';
@@ -18,15 +19,63 @@ import { formatDistanceToNow, format } from 'date-fns';
 const DashboardPage = () => {
   const currentUser = authService.getCurrentUser();
   const isCOF = currentUser?.role === 'cof' || currentUser?.role === 'admin';
+  const isClerk = currentUser?.role === 'clerk';
 
-  // Fetch dashboard data based on user role
+  // Fetch dashboard data based on user role (COF/Admin vs Officer). Disabled for clerks.
   const { data: dashboardData, isLoading, error } = useQuery({
     queryKey: isCOF ? ['dashboard', 'executive'] : ['dashboard', 'officer'],
     queryFn: isCOF ? dashboardService.getExecutiveDashboard : dashboardService.getOfficerDashboard,
     refetchInterval: 30000, // Refresh every 30 seconds
+    // Only run when we have a current user and the user isn't a clerk. This prevents
+    // the officer dashboard from firing during initial render when currentUser may be null.
+    enabled: !!currentUser?.id && !isClerk,
   });
 
-  if (isLoading) {
+  // For clerks we will show a focused view: file intake link and files owned by the clerk
+  const { data: clerkFilesData, isLoading: isClerkLoading, error: clerkError } = useQuery({
+    queryKey: ['files', 'owned', currentUser?.id],
+    // Request files with optimistic server-side filters and also apply a defensive
+    // client-side filter to ensure we only show files that were created by the
+    // current clerk and that are file-intake type (handles different backend field names).
+    queryFn: async () => {
+      // Ask the API to filter by creator/type if it supports those params. We keep
+      // `holder` for compatibility but rely on client-side filtering below as a fallback.
+      const res = await fileService.listFiles({ holder: currentUser?.id, creator: currentUser?.id, type: 'file_intake', page: 1, limit: 50 });
+
+      // Debug: raw API response
+      // eslint-disable-next-line no-console
+      console.log('[Dashboard] fileService.listFiles raw response:', res);
+
+      // Normalize the list of files whether the service returned an array or an
+      // object with `data` or `results` (API sample uses `results`).
+      const files = Array.isArray(res) ? res : (res?.data ?? res?.results ?? []);
+
+      // Debug: normalized files
+      // eslint-disable-next-line no-console
+      console.log('[Dashboard] normalized files count:', Array.isArray(files) ? files.length : (files?.length ?? 0));
+      // eslint-disable-next-line no-console
+      console.log('[Dashboard] normalized files sample:', Array.isArray(files) ? files.slice(0,5) : (files?.slice ? files.slice(0,5) : files));
+
+      // Return the API-filtered results unchanged (preserve response shape)
+      if (Array.isArray(res)) {
+        return files;
+      }
+      if (res?.results) {
+        return { ...res, results: files, total: files.length };
+      }
+      return { ...res, data: files, meta: { ...res?.meta, total: files.length } };
+    },
+    enabled: !!isClerk && !!currentUser?.id,
+    refetchInterval: 30000,
+  });
+
+  // Log clerkFilesData updates for debugging
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[Dashboard] clerkFilesData changed:', clerkFilesData);
+  }, [clerkFilesData]);
+
+  if (isLoading || (isClerk && isClerkLoading)) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" text="Loading dashboard..." />
@@ -34,7 +83,7 @@ const DashboardPage = () => {
     );
   }
 
-  if (error) {
+  if (error || (isClerk && clerkError)) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-800">Failed to load dashboard data. Please try again.</p>
@@ -49,7 +98,7 @@ const DashboardPage = () => {
         <h1 className="text-2xl font-bold text-gray-900">
           {isCOF ? 'Executive Dashboard' : 'My Dashboard'}
         </h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <p c  lassName="mt-1 text-sm text-gray-600">
           {isCOF 
             ? 'Overview of file processing and department performance' 
             : 'Your current workload and pending files'
@@ -57,11 +106,76 @@ const DashboardPage = () => {
         </p>
       </div>
 
-      {isCOF ? (
+      {isClerk ? (
+      <ClerkDashboard files={
+        Array.isArray(clerkFilesData)
+          ? clerkFilesData
+          : (clerkFilesData?.data ?? clerkFilesData?.results ?? [])
+      } />
+      ) : isCOF ? (
         <ExecutiveDashboard data={dashboardData.data} />
       ) : (
         <OfficerDashboard data={dashboardData.data} />
       )}
+    </div>
+  );
+};
+
+const ClerkDashboard = ({ files = [] }) => {
+  return (
+    <div className="space-y-6">
+      <div className="border-b border-gray-200 pb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Clerk Dashboard</h1>
+        <p className="mt-1 text-sm text-gray-600">File intake and your owned files</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="card">
+          <div className="card-body text-center">
+            <h3 className="text-lg font-medium">File Intake</h3>
+            <p className="text-sm text-gray-500 mt-2">Create new files (Clerk access)</p>
+            <div className="mt-4">
+              <a href="/file-intake" className="btn btn-primary">Go to File Intake</a>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <h3 className="text-lg font-medium text-gray-900">My Owned Files</h3>
+            <p className="text-sm text-gray-500">Files you created/own</p>
+          </div>
+          <div className="card-body">
+            {files.length > 0 ? (
+              <div className="space-y-3">
+                {files.slice(0, 10).map((file) => (
+                  <div key={file.id} className="p-3 rounded-lg bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-3">
+                          <div className="text-sm font-medium text-gray-900">{file.file_no}</div>
+                          <div className="text-xs text-gray-500"># {file.id}</div>
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{file.subject}</div>
+                      </div>
+                      <div className="text-right">
+                        <StatusBadge status={file.status} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {files.length > 10 && (
+                  <div className="text-center pt-2">
+                    <span className="text-sm text-gray-500">+{files.length - 10} more files</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">You have no owned files</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

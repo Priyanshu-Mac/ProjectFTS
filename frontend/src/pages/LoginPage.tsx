@@ -29,11 +29,31 @@ const LoginPage: React.FC = () => {
   const onSubmit: SubmitHandler<LoginCredentials> = async (data) => {
     setIsLoading(true);
     try {
-      await authService.login(data);
-      toast.success('Login successful!');
-      navigate('/', { replace: true });
+      const resp = await authService.login(data);
+      if (resp?.token) {
+        toast.success('Login successful!');
+        navigate('/', { replace: true });
+      } else {
+        toast.error('Login failed: invalid response from server');
+      }
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Login failed. Please try again.';
+      // Backend returns errors as { error: 'invalid credentials' } or zod error object
+      const errData = error?.response?.data;
+      let message = 'Login failed. Please try again.';
+      if (errData) {
+        if (typeof errData.error === 'string') {
+          message = errData.error;
+        } else if (errData.error && typeof errData.error === 'object') {
+          // Try to stringify zod style errors in a readable way
+          try {
+            message = JSON.stringify(errData.error, null, 2);
+          } catch {
+            message = 'Validation error';
+          }
+        } else if (typeof errData === 'string') {
+          message = errData;
+        }
+      }
       toast.error(message);
     } finally {
       setIsLoading(false);

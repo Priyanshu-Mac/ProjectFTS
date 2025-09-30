@@ -16,6 +16,12 @@ export const fileService = {
     return response.data;
   },
 
+  async listFiles(params = {}) {
+    // Use the main list endpoint which supports holder and pagination
+    const response = await api.get('/files', { params });
+    return response.data;
+  },
+
   async getFile(id) {
     const response = await api.get(`/files/${id}`);
     return response.data;
