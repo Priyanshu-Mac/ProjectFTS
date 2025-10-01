@@ -21,6 +21,8 @@ export const FileListQuery = z.object({
   office: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),
   category: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),
   status: z.string().optional(),
+  // filter by creator user id
+  creator: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),
   sla_policy_id: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),
   holder: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),
   page: z.preprocess((s) => (s ? Number(s) : undefined), z.number().int().positive().optional()),

@@ -27,6 +27,16 @@ export const fileService = {
     return response.data;
   },
 
+  async createShareToken(id: number) {
+    const response = await api.post(`/files/${id}/token`);
+    return response.data;
+  },
+
+  async getFileByToken(token: string) {
+    const response = await api.get(`/files/shared/files/${token}`);
+    return response.data;
+  },
+
   async moveFile(id, moveData) {
     const response = await api.post(`/files/${id}/move`, moveData);
     return response.data;

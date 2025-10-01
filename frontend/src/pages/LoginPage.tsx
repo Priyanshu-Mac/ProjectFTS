@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import type { SubmitHandler } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
@@ -21,9 +21,12 @@ const LoginPage: React.FC = () => {
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginCredentials>();
 
-  // Redirect if already authenticated
+  // If already authenticated, redirect to next if present or to home
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const next = params.get('next') ?? '/';
   if (authService.isAuthenticated()) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={next} replace />;
   }
 
   const onSubmit: SubmitHandler<LoginCredentials> = async (data) => {
@@ -32,7 +35,8 @@ const LoginPage: React.FC = () => {
       const resp = await authService.login(data);
       if (resp?.token) {
         toast.success('Login successful!');
-        navigate('/', { replace: true });
+        // redirect to requested page when available (from ?next=...)
+        navigate(next || '/', { replace: true });
       } else {
         toast.error('Login failed: invalid response from server');
       }

@@ -23,22 +23,25 @@ async function withClient<T>(fn: (client: PoolClient) => Promise<T>) {
 }
 
 export async function generateFileNo(date = new Date()): Promise<string> {
+  // Generate the next file number by looking at the latest persisted file_no
+  // for the given date and returning max + 1. This ensures numbering follows
+  // existing DB records (avoids drift between in-memory counters and DB).
   const day = date.toISOString().slice(0, 10); // YYYY-MM-DD
   return withClient(async (client) => {
-    await client.query('BEGIN');
-    const res = await client.query('SELECT counter FROM daily_counters WHERE counter_date = $1 FOR UPDATE', [day]);
-    let counter = 0;
-    if (res.rowCount === 0) {
-      await client.query('INSERT INTO daily_counters(counter_date, counter) VALUES($1, 0)', [day]);
-      counter = 0;
-    } else {
-      counter = res.rows[0].counter;
+    // Look for the latest file_no for this day in files table
+    const dstr = day.replace(/-/g, ''); // YYYYMMDD
+    const prefix = `ACC-${dstr}-`;
+    const q = 'SELECT file_no FROM files WHERE file_no LIKE $1 ORDER BY file_no DESC LIMIT 1';
+    const r = await client.query(q, [prefix + '%']);
+    let nextCounter = 1;
+    if ((r.rowCount ?? 0) > 0 && r.rows?.[0]?.file_no) {
+      const last = r.rows[0].file_no as string;
+      const parts = last.split('-');
+      const lastNumStr = parts[parts.length - 1] || '0';
+      const lastNum = Number(lastNumStr.replace(/^0+/, '') || '0');
+      nextCounter = lastNum + 1;
     }
-    const upd = await client.query('UPDATE daily_counters SET counter = counter + 1 WHERE counter_date = $1 RETURNING counter', [day]);
-    const newCounter = upd.rows[0].counter;
-    await client.query('COMMIT');
-    const d = day.replace(/-/g, '');
-    return `ACC-${d}-${String(newCounter).padStart(2, '0')}`;
+    return `ACC-${dstr}-${String(nextCounter).padStart(2, '0')}`;
   });
 }
 
@@ -81,6 +84,7 @@ export async function listFiles(query?: {
   status?: string;
   priority?: string;
   holder?: number;
+  creator?: number;
   page?: number;
   limit?: number;
   date_from?: string;
@@ -112,6 +116,10 @@ export async function listFiles(query?: {
     vals.push(query.holder);
     where.push(`current_holder_user_id = $${vals.length}`);
   }
+  if (query?.creator) {
+    vals.push(query.creator);
+    where.push(`created_by = $${vals.length}`);
+  }
   if (query?.date_from) {
     vals.push(query.date_from);
     where.push(`created_at >= $${vals.length}`);
@@ -126,7 +134,18 @@ export async function listFiles(query?: {
   const page = query?.page && query.page > 0 ? query.page : 1;
   const offset = (page - 1) * limit;
 
-  const q = `SELECT * FROM files ${whereSql} ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`;
+  // Include human-friendly names for foreign keys by joining related tables.
+  // Return small JSON objects for owning_office, category and created_by_user so the frontend can use .name/.username
+  const q = `SELECT files.*, 
+    json_build_object('id', o.id, 'name', o.name) AS owning_office,
+    json_build_object('id', c.id, 'name', c.name) AS category,
+    json_build_object('id', u.id, 'username', u.username, 'name', u.name) AS created_by_user
+    FROM files
+    LEFT JOIN offices o ON files.owning_office_id = o.id
+    LEFT JOIN categories c ON files.category_id = c.id
+    LEFT JOIN users u ON files.created_by = u.id
+    ${whereSql} ORDER BY files.id DESC LIMIT ${limit} OFFSET ${offset}`;
+
   // log the raw query and a sanitized connection URL for debugging (no password)
   // eslint-disable-next-line no-console
   console.log('[pg] listFiles SQL:', q, 'params:', JSON.stringify(vals), 'url:', sanitizeConnectionString(process.env.DATABASE_URL));
@@ -146,7 +165,15 @@ export async function listFiles(query?: {
 }
 
 export async function getFile(id: number) {
-  const q = 'SELECT * FROM files WHERE id = $1';
+  const q = `SELECT files.*, 
+    json_build_object('id', o.id, 'name', o.name) AS owning_office,
+    json_build_object('id', c.id, 'name', c.name) AS category,
+    json_build_object('id', u.id, 'username', u.username, 'name', u.name) AS created_by_user
+    FROM files
+    LEFT JOIN offices o ON files.owning_office_id = o.id
+    LEFT JOIN categories c ON files.category_id = c.id
+    LEFT JOIN users u ON files.created_by = u.id
+    WHERE files.id = $1`;
   // eslint-disable-next-line no-console
   console.log('[pg] getFile SQL:', q, 'params:', JSON.stringify([id]), 'url:', sanitizeConnectionString(process.env.DATABASE_URL));
   const r = await pool.query(q, [id]);
@@ -167,8 +194,31 @@ export async function addEvent(file_id: number|undefined, payload: any) {
       const seq = (seqR.rows[0].maxseq || 0) + 1;
 
       const q = `INSERT INTO file_events(file_id, seq_no, from_user_id, to_user_id, action_type, started_at, ended_at, business_minutes_held, remarks, attachments_json)
-        VALUES($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,$6,$7,$8,$9) RETURNING *`;
-      const vals = [file_id, seq, payload.from_user_id ?? null, payload.to_user_id ?? null, payload.action_type, payload.ended_at ?? null, payload.business_minutes_held ?? null, payload.remarks ?? null, payload.attachments_json ?? null];
+        VALUES($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,$6,$7,$8,$9::json) RETURNING *`;
+      // Sanitize attachments_json: allow callers to pass array/object or a JSON string.
+      // If it's a string, ensure it's valid JSON; if not valid, wrap it as a single-element array.
+      let attachmentsParam: string | null = null;
+      try {
+        if (payload.attachments_json == null) {
+          attachmentsParam = null;
+        } else if (typeof payload.attachments_json === 'string') {
+          // validate string is valid JSON
+          try {
+            JSON.parse(payload.attachments_json);
+            attachmentsParam = payload.attachments_json;
+          } catch (e) {
+            // not valid JSON, wrap the raw string into an array
+            attachmentsParam = JSON.stringify([payload.attachments_json]);
+          }
+        } else {
+          // object or array — stringify
+          attachmentsParam = JSON.stringify(payload.attachments_json);
+        }
+      } catch (e) {
+        // fallback to null on unexpected errors
+        attachmentsParam = null;
+      }
+      const vals = [file_id, seq, payload.from_user_id ?? null, payload.to_user_id ?? null, payload.action_type, payload.ended_at ?? null, payload.business_minutes_held ?? null, payload.remarks ?? null, attachmentsParam];
       // eslint-disable-next-line no-console
       console.log('[pg] addEvent SQL:', q, 'params:', JSON.stringify(vals), 'url:', sanitizeConnectionString(process.env.DATABASE_URL));
       const r = await client.query(q, vals);

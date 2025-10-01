@@ -40,7 +40,7 @@ const DashboardPage = () => {
     queryFn: async () => {
       // Ask the API to filter by creator/type if it supports those params. We keep
       // `holder` for compatibility but rely on client-side filtering below as a fallback.
-      const res = await fileService.listFiles({ holder: currentUser?.id, creator: currentUser?.id, type: 'file_intake', page: 1, limit: 50 });
+      const res = await fileService.listFiles({ creator: currentUser?.id, type: 'file_intake', page: 1, limit: 50 });
 
       // Debug: raw API response
       // eslint-disable-next-line no-console

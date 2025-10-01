@@ -15,11 +15,12 @@ import eventsRouter from './routes/events';
 import dashboardRouter from './routes/dashboard';
 import internalRouter from './routes/internal';
 import authRouter from './routes/auth';
+import masterDataRouter from './routes/masterData';
 import { optionalAuth } from './middleware/auth';
 
 const app = express();
 // CORS: allow the frontend origin (configurable). Default to http://localhost:5173 for local dev.
-const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const allowedOrigin = process.env.PORT ? process.env.FRONTEND_ORIGIN : process.env.PORT;
 app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true }));
 app.use(express.json());
 
@@ -45,6 +46,7 @@ app.use('/files/:id/events', eventsRouter);
 app.use('/auth', authRouter);
 app.use('/dashboards', dashboardRouter);
 app.use('/internal', internalRouter);
+app.use('/master-data', masterDataRouter);
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const server = app.listen(PORT, () => {

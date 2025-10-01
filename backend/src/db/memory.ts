@@ -44,11 +44,20 @@ let fileIdSeq = 1;
 let eventIdSeq = 1;
 
 export function generateFileNo(date = new Date()): string {
+  // Compute the next file number by inspecting existing files for the day
   const d = date.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-  const key = d;
-  const cnt = (dailyCounters.get(key) || 0) + 1;
-  dailyCounters.set(key, cnt);
-  return `ACC-${d}-${String(cnt).padStart(2, '0')}`;
+  const prefix = `ACC-${d}-`;
+  // Find highest numeric suffix for today's files
+  let max = 0;
+  for (const f of files) {
+    if (typeof f.file_no === 'string' && f.file_no.startsWith(prefix)) {
+      const parts = f.file_no.split('-');
+      const n = Number(parts[parts.length - 1].replace(/^0+/, '') || '0');
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+  }
+  const next = max + 1;
+  return `ACC-${d}-${String(next).padStart(2, '0')}`;
 }
 
 export function createFile(payload: Partial<FileRecord>): FileRecord {
@@ -105,6 +114,9 @@ export function listFiles(query?: {
   }
   if (query?.holder) {
     res = res.filter(f => f.current_holder_user_id === query.holder);
+  }
+  if ((query as any)?.creator) {
+    res = res.filter(f => f.created_by === (query as any).creator);
   }
   const dateFrom = query?.date_from;
   const dateTo = query?.date_to;

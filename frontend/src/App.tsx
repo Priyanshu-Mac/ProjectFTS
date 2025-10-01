@@ -9,6 +9,9 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 // Pages
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import FileIntakePage from './pages/FileIntakePage';
+import FileSearchPage from './pages/FileSearchPage';
+import FileDetailPage from './pages/FileDetailPage';
 
 // Services
 import { authService } from './services/authService';
@@ -50,10 +53,7 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['clerk', 'admin']}>
                   <Layout>
-                    <div className="text-center py-12">
-                      <h2 className="text-2xl font-bold text-gray-900">File Intake</h2>
-                      <p className="text-gray-600 mt-2">Coming soon...</p>
-                    </div>
+                    <FileIntakePage />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -80,14 +80,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <div className="text-center py-12">
-                      <h2 className="text-2xl font-bold text-gray-900">File Search</h2>
-                      <p className="text-gray-600 mt-2">Coming soon...</p>
-                    </div>
+                    <FileSearchPage />
                   </Layout>
                 </ProtectedRoute>
               }
             />
+
+            {/* File detail (public if token provided, or protected) */}
+            <Route path="/files/:id" element={<FileDetailPage />} />
             
             {/* COF Review - COF and Admin only */}
             <Route
