@@ -7,6 +7,7 @@ let getFile = mem.getFile as any;
 let addEvent = mem.addEvent as any;
 let listEvents = mem.listEvents as any;
 let computeSlaStatus = (mem as any).computeSlaStatus as any;
+let refreshFileSla = async (_id: number) => false as any;
 let createUser = (mem as any).createUser as any;
 let findUserByUsername = (mem as any).findUserByUsername as any;
 
@@ -22,6 +23,7 @@ if (process.env.DATABASE_URL) {
     addEvent = pg.addEvent;
     listEvents = pg.listEvents;
   computeSlaStatus = pg.computeSlaStatus;
+    refreshFileSla = pg.refreshFileSla;
     createUser = pg.createUser;
     findUserByUsername = pg.findUserByUsername;
   } catch (e: any) {
@@ -31,7 +33,7 @@ if (process.env.DATABASE_URL) {
   }
 }
 
-export { generateFileNo, createFile, listFiles, getFile, addEvent, listEvents, computeSlaStatus, createUser, findUserByUsername };
+export { generateFileNo, createFile, listFiles, getFile, addEvent, listEvents, computeSlaStatus, createUser, findUserByUsername, refreshFileSla };
 
 // Log which adapter is in use (do not print connection string)
 try {

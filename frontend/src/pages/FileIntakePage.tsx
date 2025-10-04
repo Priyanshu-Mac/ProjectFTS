@@ -16,7 +16,6 @@ type Payload = {
   date_initiated?: string | null;
   date_received_accounts?: string | null;
   forward_to_officer_id?: number | null;
-  status?: string | null;
   save_as_draft?: boolean;
   attachments?: Array<{ name?: string; url?: string }> | null;
   remarks?: string | null;
@@ -49,6 +48,19 @@ export default function FileIntakePage() {
   const [slaPolicies, setSlaPolicies] = useState<Array<any>>([]);
   const [officers, setOfficers] = useState<Array<any>>([]);
   const [nextFileNo, setNextFileNo] = useState<string | null>(null);
+  const [slaPreview, setSlaPreview] = useState<{ id?: number; name?: string; sla_minutes?: number } | null>(null);
+
+  function truncateLabel(s: any, max = 30) {
+    const str = String(s ?? '');
+    if (str.length <= max) return str;
+    return str.slice(0, max - 1) + '…';
+  }
+
+  function formatBusinessDuration(mins?: number | null) {
+    if (mins == null || mins <= 0) return '';
+    const hours = Math.round(mins / 60);
+    return `${hours} business hour${hours === 1 ? '' : 's'}`;
+  }
 
   function update<K extends keyof Payload>(key: K, value: Payload[K]) {
     setForm((s) => ({ ...s, [key]: value }));
@@ -119,7 +131,7 @@ export default function FileIntakePage() {
           ...s,
           owning_office_id: s.owning_office_id ?? (off?.[0]?.id ?? undefined),
           category_id: s.category_id ?? (cat?.[0]?.id ?? undefined),
-          sla_policy_id: s.sla_policy_id ?? (sla?.[0]?.id ?? undefined),
+          // sla_policy_id is now auto-derived from Category + Priority; no default from list
           forward_to_officer_id: s.forward_to_officer_id ?? (officersResp?.[0]?.id ?? undefined),
         }));
 
@@ -136,9 +148,53 @@ export default function FileIntakePage() {
     };
   }, []);
 
+  // Recompute SLA preview and auto-derive sla_policy_id when category or priority changes
+  useEffect(() => {
+    if (!form.category_id || !form.priority) {
+      setSlaPreview(null);
+      // clear auto-derived selection
+      setForm((s) => (s.sla_policy_id ? { ...s, sla_policy_id: undefined } : s));
+      return;
+    }
+    // Try to find a matching policy by category and priority label
+    const match = slaPolicies.find((p) => p.category_id === form.category_id && (
+      (p.priority && p.priority === form.priority) ||
+      // fallback: infer from name if priority field missing
+      (typeof p.name === 'string' && p.name.toLowerCase().includes(String(form.priority).toLowerCase()))
+    ));
+    if (match) {
+      setSlaPreview({ id: match.id, name: match.name, sla_minutes: match.sla_minutes });
+      // set auto-derived sla_policy_id if changed
+      setForm((s) => (s.sla_policy_id === match.id ? s : { ...s, sla_policy_id: match.id }));
+    } else {
+      setSlaPreview(null);
+      setForm((s) => (s.sla_policy_id ? { ...s, sla_policy_id: undefined } : s));
+    }
+  }, [form.category_id, form.priority, slaPolicies]);
+
   return (
     <div className="max-w-3xl mx-auto py-10">
-      <h2 className="text-2xl font-bold mb-4">File Intake</h2>
+      <h2 className="text-2xl font-bold mb-2">File Intake</h2>
+      {/* Top strip: File No preview and SLA preview */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="p-3 border rounded bg-gray-50">
+          <div className="text-xs text-gray-500">File No (preview)</div>
+          <div className="font-mono text-lg">{nextFileNo ?? '—'}</div>
+        </div>
+        <div className="p-3 border rounded bg-gray-50">
+          <div className="text-xs text-gray-500">SLA (auto from Category + Priority)</div>
+          {slaPreview ? (
+            <div>
+              <div className="font-medium">{slaPreview.name ?? `Policy #${slaPreview.id}`}</div>
+              {typeof slaPreview.sla_minutes === 'number' && (
+                <div className="text-sm text-gray-600">{formatBusinessDuration(slaPreview.sla_minutes)}</div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">Select category and priority to preview</div>
+          )}
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {currentUser ? (
@@ -170,65 +226,64 @@ export default function FileIntakePage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Owning Office</label>
-            <select
-              value={form.owning_office_id ?? ''}
-              onChange={(e) => update('owning_office_id', e.target.value ? Number(e.target.value) : undefined)}
-              className="mt-1 block w-full border rounded p-2"
-            >
-              <option value="">Select office</option>
-              {offices.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <label className="block text-sm font-medium text-gray-700">Category</label>
             <select
               value={form.category_id ?? ''}
               onChange={(e) => update('category_id', e.target.value ? Number(e.target.value) : undefined)}
-              className="mt-1 block w-full border rounded p-2"
+              className="mt-1 block w-full border rounded p-2 truncate"
             >
               <option value="">Select category</option>
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id} title={c.name}>{truncateLabel(c.name)}</option>
               ))}
             </select>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">SLA Policy</label>
-            <select
-              value={form.sla_policy_id ?? ''}
-              onChange={(e) => update('sla_policy_id', e.target.value ? Number(e.target.value) : undefined)}
-              className="mt-1 block w-full border rounded p-2"
-            >
-              <option value="">Select SLA policy</option>
-              {slaPolicies.map((s) => (
-                <option key={s.id} value={s.id}>{s.name ?? `${s.sla_minutes} mins`}</option>
-              ))}
-            </select>
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700">Priority</label>
             <select
               value={form.priority ?? ''}
               onChange={(e) => update('priority', e.target.value || undefined)}
-              className="mt-1 block w-full border rounded p-2"
+              className="mt-1 block w-full border rounded p-2 truncate"
             >
               <option value="">Select</option>
               <option value="Routine">Routine</option>
               <option value="Urgent">Urgent</option>
               <option value="Critical">Critical</option>
             </select>
+            <p className="mt-1 text-xs text-gray-600">SLA is auto-selected based on Category + Priority.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Owning Office</label>
+            <select
+              value={form.owning_office_id ?? ''}
+              onChange={(e) => update('owning_office_id', e.target.value ? Number(e.target.value) : undefined)}
+              className="mt-1 block w-full border rounded p-2 truncate"
+            >
+              <option value="">Select office</option>
+              {offices.map((o) => (
+                <option key={o.id} value={o.id} title={o.name}>{truncateLabel(o.name)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Forward to Officer</label>
+            <select
+              value={form.forward_to_officer_id ?? ''}
+              onChange={(e) => update('forward_to_officer_id', e.target.value ? Number(e.target.value) : undefined)}
+              className="mt-1 block w-full border rounded p-2 truncate"
+            >
+              <option value="">Select officer</option>
+              {officers.map((u) => (
+                <option key={u.id} value={u.id} title={u.name ?? u.username}>{truncateLabel(u.name ?? u.username)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Confidential</label>
             <div className="mt-1">
@@ -243,48 +298,11 @@ export default function FileIntakePage() {
               </label>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Forward to Officer</label>
-            <select
-              value={form.forward_to_officer_id ?? ''}
-              onChange={(e) => update('forward_to_officer_id', e.target.value ? Number(e.target.value) : undefined)}
-              className="mt-1 block w-full border rounded p-2"
-            >
-              <option value="">Select officer</option>
-              {officers.map((u) => (
-                <option key={u.id} value={u.id}>{u.name ?? u.username}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {/* created_by and current_holder are set automatically by the backend */}
 
-        <div className="grid grid-cols-2 gap-4 items-end">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              value={(form.status as any) ?? ''}
-              onChange={(e) => update('status', e.target.value || undefined)}
-              className="mt-1 block w-full border rounded p-2"
-            >
-              <option value="">Select status</option>
-              <option value="Open">Open</option>
-              <option value="WithOfficer">WithOfficer</option>
-              <option value="WithCOF">WithCOF</option>
-              <option value="Dispatched">Dispatched</option>
-              <option value="OnHold">OnHold</option>
-              <option value="WaitingOnOrigin">WaitingOnOrigin</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">File No (preview)</label>
-            <div className="mt-1 p-2 border rounded bg-gray-50">{nextFileNo ?? '—'}</div>
-          </div>
-        </div>
+        {/* Status is auto-managed by the system and set on backend based on actions; no manual selection here */}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

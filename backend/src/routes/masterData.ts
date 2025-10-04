@@ -19,9 +19,9 @@ const FALLBACK = {
     { id: 5, name: 'Misc' },
   ],
   sla_policies: [
-    { id: 19, category_id: 1, sla_minutes: 1440, name: 'Budget - Routine (3 business days)' },
-    { id: 20, category_id: 1, sla_minutes: 480, name: 'Budget - Urgent (1 business day)' },
-    { id: 21, category_id: 1, sla_minutes: 240, name: 'Budget - Critical (half day)' },
+    { id: 19, category_id: 1, sla_minutes: 1440, name: 'Budget - Routine (3 business days)', priority: 'Routine' },
+    { id: 20, category_id: 1, sla_minutes: 480, name: 'Budget - Urgent (1 business day)', priority: 'Urgent' },
+    { id: 21, category_id: 1, sla_minutes: 240, name: 'Budget - Critical (half day)', priority: 'Critical' },
     // ... other policies omitted for brevity
   ],
   users: [
@@ -69,7 +69,7 @@ router.get('/sla-policies', async (_req, res) => {
   const pool = getPool();
   if (!pool) return res.json(FALLBACK.sla_policies);
   try {
-    const r = await pool.query('SELECT id, category_id, sla_minutes, name, active FROM sla_policies WHERE active IS TRUE ORDER BY id');
+    const r = await pool.query('SELECT id, category_id, sla_minutes, name, priority, active FROM sla_policies WHERE active IS TRUE ORDER BY id');
     return res.json(r.rows);
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? 'db error' });

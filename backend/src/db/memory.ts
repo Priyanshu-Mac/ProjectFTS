@@ -236,8 +236,8 @@ export function findUserByUsername(username: string) {
   return users.find(u => u.username === username) || null;
 }
 
-export function createUser(payload: { username: string; name: string; password_hash: string; email?: string }) {
-  const u: User = { id: userSeq++, username: payload.username, name: payload.name, role: 'Clerk', office_id: null, password_hash: payload.password_hash, email: payload.email };
+export function createUser(payload: { username: string; name: string; password_hash: string; email?: string; role?: string; office_id?: number | null }) {
+  const u: User = { id: userSeq++, username: payload.username, name: payload.name, role: payload.role || 'Clerk', office_id: payload.office_id ?? null, password_hash: payload.password_hash, email: payload.email };
   users.push(u);
   return u;
 }

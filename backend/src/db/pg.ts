@@ -262,17 +262,27 @@ export async function listEvents(file_id?: number) {
   return r.rows;
 }
 
+export async function refreshFileSla(file_id: number) {
+  try {
+    await pool.query('SELECT public.update_file_sla($1)', [file_id]);
+    return true;
+  } catch (e) {
+    // ignore if function not present
+    return false;
+  }
+}
+
 // User helper functions for auth
 export async function findUserByUsername(username: string) {
   const r = await pool.query('SELECT * FROM users WHERE username = $1 LIMIT 1', [username]);
   return r.rows[0] || null;
 }
-export async function createUser(payload: { username: string; name: string; password_hash: string; role?: string; office_id?: number | null }) {
-  const q = `INSERT INTO users(username, name, role, office_id) VALUES($1,$2,$3,$4) RETURNING *`;
-  // take role/office_id from payload, default role to 'Clerk' and office_id to null
-  const vals = [payload.username, payload.name, payload.role || 'Clerk', payload.office_id ?? null];
+export async function createUser(payload: { username: string; name: string; password_hash: string; role?: string; office_id?: number | null; email?: string | null }) {
+  // Insert including optional email and office_id; role defaults to Clerk
+  const q = `INSERT INTO users(username, name, role, office_id, email) VALUES($1,$2,$3,$4,$5) RETURNING *`;
+  const vals = [payload.username, payload.name, payload.role || 'Clerk', payload.office_id ?? null, payload.email ?? null];
   const r = await pool.query(q, vals);
-  // store password_hash in users table if column exists; try to update password_hash column
+  // store password_hash
   try {
     await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [payload.password_hash, r.rows[0].id]);
   } catch (e) {
@@ -283,21 +293,28 @@ export async function createUser(payload: { username: string; name: string; pass
 
 export async function computeSlaStatus(file_id: number) {
   // fetch file and its sla policy minutes
-  const fileR = await pool.query('SELECT id, sla_policy_id FROM files WHERE id = $1', [file_id]);
+  const fileR = await pool.query('SELECT id, sla_policy_id, created_at, date_initiated, date_received_accounts FROM files WHERE id = $1', [file_id]);
   if (fileR.rowCount === 0) return null;
   const file = fileR.rows[0];
+  // Allow switching to calendar-time mode for testing (ignore weekends/business hours)
+  const calendarMode = (String(process.env.SLA_CALC_MODE || '').toLowerCase() === 'calendar') || (String(process.env.SLA_IGNORE_BUSINESS_TIME || '').toLowerCase() === 'true');
   // fetch sla policy details
   let slaMinutes = 1440; // default
   let warningPct = 70;
   let escalatePct = 100;
   let pauseOnHold = true;
+  let policyName: string | null = null;
+  let policyId: number | null = file.sla_policy_id ?? null;
   if (file.sla_policy_id) {
-    const sp = await pool.query('SELECT sla_minutes, warning_pct, escalate_pct, pause_on_hold FROM sla_policies WHERE id = $1', [file.sla_policy_id]);
+    const sp = await pool.query('SELECT id, name, sla_minutes, warning_pct, escalate_pct, pause_on_hold FROM sla_policies WHERE id = $1', [file.sla_policy_id]);
     if (sp.rowCount) {
-      slaMinutes = Number(sp.rows[0].sla_minutes || slaMinutes);
-      warningPct = Number(sp.rows[0].warning_pct ?? warningPct);
-      escalatePct = Number(sp.rows[0].escalate_pct ?? escalatePct);
-      pauseOnHold = Boolean(sp.rows[0].pause_on_hold ?? pauseOnHold);
+      const row = sp.rows[0];
+      policyId = Number(row.id || policyId);
+      policyName = row.name ?? null;
+      slaMinutes = Number(row.sla_minutes || slaMinutes);
+      warningPct = Number(row.warning_pct ?? warningPct);
+      escalatePct = Number(row.escalate_pct ?? escalatePct);
+      pauseOnHold = Boolean(row.pause_on_hold ?? pauseOnHold);
     }
   }
 
@@ -311,7 +328,9 @@ export async function computeSlaStatus(file_id: number) {
     excludeClause = `AND (action_type IS NULL OR action_type <> ALL($2::text[]))`;
   }
 
-  const sumQ = `SELECT COALESCE(SUM(business_minutes_held),0) as summins FROM file_events WHERE file_id = $1 AND ended_at IS NOT NULL ${excludeClause}`;
+  const sumQ = calendarMode
+    ? `SELECT COALESCE(SUM(FLOOR(EXTRACT(EPOCH FROM (ended_at - started_at))/60)),0) as summins FROM file_events WHERE file_id = $1 AND ended_at IS NOT NULL ${excludeClause}`
+    : `SELECT COALESCE(SUM(COALESCE(business_minutes_held, FLOOR(EXTRACT(EPOCH FROM (ended_at - started_at))/60))),0) as summins FROM file_events WHERE file_id = $1 AND ended_at IS NOT NULL ${excludeClause}`;
   const sumR = await pool.query(sumQ, vals);
   const closedSum = Number(sumR.rows[0].summins || 0);
 
@@ -319,17 +338,65 @@ export async function computeSlaStatus(file_id: number) {
   const openR = await pool.query('SELECT id, started_at, action_type FROM file_events WHERE file_id = $1 AND ended_at IS NULL ORDER BY seq_no DESC LIMIT 1', [file_id]);
   let ongoingMinutes = 0;
   if (openR.rowCount) {
-    const row = openR.rows[0];
-    const isExcluded = pauseOnHold && (row.action_type === 'Hold' || row.action_type === 'SeekInfo');
-    if (!isExcluded) {
-      const startedAt = row.started_at;
-      const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [startedAt]);
-      ongoingMinutes = Number(calc.rows[0].mins || 0);
-    }
+      const row = openR.rows[0];
+      const isExcluded = pauseOnHold && (row.action_type === 'Hold' || row.action_type === 'SeekInfo');
+      if (!isExcluded) {
+        const startedAt = row.started_at;
+        if (calendarMode) {
+          try {
+            const calc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
+            ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+          } catch {
+            ongoingMinutes = 0;
+          }
+        } else {
+          try {
+            const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [startedAt]);
+            ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+            // Defensive fallback: if business-time returns 0 but there is elapsed wall time, use wall-clock minutes so testing on weekends still progresses
+            if (!ongoingMinutes || ongoingMinutes <= 0) {
+              const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
+              const wcmins = Number(wc.rows?.[0]?.mins || 0);
+              if (wcmins > 0) ongoingMinutes = wcmins;
+            }
+          } catch (e: any) {
+            // If DB function is missing or errors, default ongoing minutes to 0 so endpoint does not fail
+            ongoingMinutes = 0;
+          }
+        }
+      } else {
+        // No open event found; fall back to computing from a file-level timestamp so SLA progresses even before first event is created
+        const fallbackStart = file.date_received_accounts || file.date_initiated || file.created_at;
+        if (fallbackStart) {
+          try {
+            if (calendarMode) {
+              const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [fallbackStart]);
+              ongoingMinutes = Number(wc.rows?.[0]?.mins || 0);
+            } else {
+              const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [fallbackStart]);
+              ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+            }
+          } catch {
+            ongoingMinutes = 0;
+          }
+        }
+      }
   }
 
   const consumed = closedSum + ongoingMinutes;
   const percent = Math.min(100, Math.round((consumed / Math.max(1, slaMinutes)) * 100));
   const status = percent >= escalatePct ? 'Breach' : (percent >= warningPct ? 'Warning' : 'On-track');
-  return { sla_minutes: slaMinutes, consumed_minutes: consumed, percent_used: percent, status, remaining_minutes: Math.max(0, slaMinutes - consumed) };
+  return {
+    sla_minutes: slaMinutes,
+    consumed_minutes: consumed,
+    percent_used: percent,
+    status,
+    remaining_minutes: Math.max(0, slaMinutes - consumed),
+    warning_pct: warningPct,
+    escalate_pct: escalatePct,
+    pause_on_hold: pauseOnHold,
+    policy_id: policyId,
+    policy_name: policyName,
+    calc_mode: calendarMode ? 'calendar' : 'business',
+  };
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { FileCreateSchema, FileListQuery, FileListQueryType } from '../schemas/file';
-import { createFile, listFiles, getFile, addEvent, computeSlaStatus, generateFileNo } from '../db/index';
+import { createFile, listFiles, getFile, addEvent, computeSlaStatus, generateFileNo, refreshFileSla } from '../db/index';
 import { EchoSchema } from '../schemas/echo';
 import { requireAuth } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
@@ -65,7 +65,48 @@ router.get('/', async (req, res) => {
   }
   const q = parsed.data as FileListQueryType;
   const list = await listFiles(q as any);
-  res.json(list);
+  // Optional enrichment: includeSla=true will compute live SLA for each row and override persisted fields in the JSON response
+  const includeSlaRaw = (req.query as any).includeSla ?? (req.query as any).include_sla;
+  // Default includeSla to true unless explicitly set to false by the caller
+  const flag = includeSlaRaw === undefined
+    ? true
+    : String(includeSlaRaw).toLowerCase() === 'true';
+  if (!flag) return res.json(list);
+  try {
+    const persist = String((req.query as any).persistSla || (req.query as any).persist_sla || '').toLowerCase() === 'true';
+    if (persist) {
+      try {
+        await Promise.all((list.results || []).map((row: any) => refreshFileSla(Number(row.id)).catch(() => false)));
+      } catch {}
+    }
+    const enriched = await Promise.all((list.results || []).map(async (row: any) => {
+      try {
+        const sla = await computeSlaStatus(Number(row.id));
+        if (sla) {
+          return {
+            ...row,
+            // override with live snapshot
+            sla_minutes: sla.sla_minutes,
+            sla_consumed_minutes: sla.consumed_minutes,
+            sla_percent: sla.percent_used,
+            sla_status: sla.status,
+            sla_remaining_minutes: sla.remaining_minutes,
+            sla_warning_pct: sla.warning_pct,
+            sla_escalate_pct: sla.escalate_pct,
+            sla_pause_on_hold: sla.pause_on_hold,
+            sla_policy_name: sla.policy_name,
+            sla_policy_id_resolved: sla.policy_id,
+            calc_mode: sla.calc_mode,
+          };
+        }
+      } catch {}
+      return row;
+    }));
+    return res.json({ ...list, results: enriched });
+  } catch (e: any) {
+    // fall back to original list on errors
+    return res.json(list);
+  }
 });
 
 router.get('/next-number', async (_req, res) => {
@@ -83,6 +124,30 @@ router.get('/:id', requireAuth as any, async (req, res) => {
   if (!raw || Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
   const f = await getFile(id);
   if (!f) return res.status(404).json({ error: 'not found' });
+  // persist SLA snapshot into files.* columns so the DB reflects latest
+  try { await refreshFileSla(id); } catch {}
+  // enrich with computed SLA snapshot
+  try {
+    const sla = await computeSlaStatus(id as any);
+    if (sla) {
+      return res.json({
+        ...f,
+        sla_minutes: sla.sla_minutes,
+        sla_consumed_minutes: sla.consumed_minutes,
+        sla_percent: sla.percent_used,
+        sla_status: sla.status,
+        sla_remaining_minutes: sla.remaining_minutes,
+        // extra policy context
+        sla_warning_pct: sla.warning_pct,
+        sla_escalate_pct: sla.escalate_pct,
+        sla_pause_on_hold: sla.pause_on_hold,
+        sla_policy_name: sla.policy_name,
+        sla_policy_id_resolved: sla.policy_id,
+      });
+    }
+  } catch (e) {
+    // ignore SLA compute errors and return base file
+  }
   res.json(f);
 });
 
@@ -128,9 +193,13 @@ router.get('/:id/sla', requireAuth as any, async (req, res) => {
   const raw = (req.params as any).id;
   const id = Number(raw);
   if (!raw || Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
-  const s = await computeSlaStatus(id as any);
-  if (s === null) return res.status(404).json({ error: 'file not found' });
-  res.json(s);
+  try {
+    const s = await computeSlaStatus(id as any);
+    if (s === null) return res.status(404).json({ error: 'file not found' });
+    return res.json(s);
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message ?? 'sla compute failed' });
+  }
 });
 
 export default router;

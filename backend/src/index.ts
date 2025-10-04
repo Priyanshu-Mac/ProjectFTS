@@ -20,7 +20,7 @@ import { optionalAuth } from './middleware/auth';
 
 const app = express();
 // CORS: allow the frontend origin (configurable). Default to http://localhost:5173 for local dev.
-const allowedOrigin = process.env.PORT ? process.env.FRONTEND_ORIGIN : process.env.PORT;
+const allowedOrigin = process.env.FRONTEND_ORIGIN;
 app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true }));
 app.use(express.json());
 
