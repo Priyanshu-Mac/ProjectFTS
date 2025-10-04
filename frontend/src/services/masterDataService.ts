@@ -11,8 +11,8 @@ export const masterDataService = {
     return response.data;
   },
 
-  async getUsers(role = null) {
-    const params = role ? { role } : {};
+  async getUsers(role: string | null = null) {
+    const params: any = role ? { role } : {};
     const response = await api.get('/master-data/users', { params });
     return response.data;
   },

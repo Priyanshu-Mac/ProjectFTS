@@ -1,8 +1,15 @@
 import React from 'react';
 
-const StatusBadge = ({ status, className = '' }) => {
-  const getStatusConfig = (status) => {
-    const configs = {
+type StatusBadgeProps = {
+  status: string | null | undefined;
+  className?: string;
+};
+
+const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className = '' }) => {
+  const normalize = (val: unknown) => String(val || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const getStatusConfig = (statusRaw: unknown) => {
+    const status = normalize(statusRaw)
+    const configs: Record<string, { label: string; className: string }> = {
       // File statuses
       open: { label: 'Open', className: 'badge-secondary' },
       with_officer: { label: 'With Officer', className: 'badge-info' },
@@ -23,7 +30,7 @@ const StatusBadge = ({ status, className = '' }) => {
       critical: { label: 'Critical', className: 'badge-danger' }
     };
     
-    return configs[status] || { label: status, className: 'badge-secondary' };
+    return configs[status] || { label: statusRaw, className: 'badge-secondary' };
   };
 
   const config = getStatusConfig(status);

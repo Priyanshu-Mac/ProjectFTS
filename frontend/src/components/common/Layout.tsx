@@ -46,11 +46,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       name: 'File Intake', 
       href: '/file-intake', 
       icon: Plus, 
-      roles: ['clerk', 'admin'] 
+      roles: ['clerk', 'cof', 'admin'] 
     },
     { 
-      name: 'My Files', 
-      href: '/my-files', 
+      name: 'Move File', 
+      href: '/move-file', 
       icon: FolderOpen, 
       roles: ['accounts_officer', 'cof', 'admin'] 
     },
@@ -70,6 +70,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       name: 'Analytics', 
       href: '/analytics', 
       icon: BarChart3, 
+      roles: ['cof', 'admin'] 
+    },
+    { 
+      name: 'Audit Logs', 
+      href: '/audit-logs', 
+      icon: FileText, 
       roles: ['cof', 'admin'] 
     },
     { 

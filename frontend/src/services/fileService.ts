@@ -6,7 +6,7 @@ export const fileService = {
     return response.data;
   },
 
-  async createFile(fileData) {
+  async createFile(fileData: Record<string, any>) {
     const response = await api.post('/files', fileData);
     return response.data;
   },
@@ -22,7 +22,7 @@ export const fileService = {
     return response.data;
   },
 
-  async getFile(id) {
+  async getFile(id: number) {
     const response = await api.get(`/files/${id}`);
     return response.data;
   },
@@ -37,8 +37,14 @@ export const fileService = {
     return response.data;
   },
 
-  async moveFile(id, moveData) {
-    const response = await api.post(`/files/${id}/move`, moveData);
+  // Movement/events
+  async addEvent(id: number, data: { to_user_id?: number; action_type: string; remarks?: string; attachments?: any[] }) {
+    const response = await api.post(`/files/${id}/events`, data);
+    return response.data;
+  },
+
+  async listEvents(id: number) {
+    const response = await api.get(`/files/${id}/events`);
     return response.data;
   }
 };

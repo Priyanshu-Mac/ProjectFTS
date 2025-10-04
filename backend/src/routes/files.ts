@@ -5,6 +5,7 @@ import { EchoSchema } from '../schemas/echo';
 import { requireAuth } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
 import { findUserByUsername } from '../db/index';
+import { logAudit } from '../middleware/audit';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.post('/', requireAuth as any, async (req, res) => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const dupList = await listFiles({ q: payload.subject, date_from: thirtyDaysAgo, limit: 10 });
 
+  try { await logAudit({ req, userId: createdBy, fileId: rec.id, action: 'Write', details: { route: 'POST /files', payload } }); } catch {}
   res.status(201).json({ file: rec, checklist, duplicates: dupList.results });
 });
 
@@ -71,7 +73,7 @@ router.get('/', async (req, res) => {
   const flag = includeSlaRaw === undefined
     ? true
     : String(includeSlaRaw).toLowerCase() === 'true';
-  if (!flag) return res.json(list);
+  if (!flag) { try { await logAudit({ req, action: 'Read', details: { route: 'GET /files', query: q } }); } catch {}; return res.json(list); }
   try {
     const persist = String((req.query as any).persistSla || (req.query as any).persist_sla || '').toLowerCase() === 'true';
     if (persist) {
@@ -102,9 +104,11 @@ router.get('/', async (req, res) => {
       } catch {}
       return row;
     }));
+    try { await logAudit({ req, action: 'Read', details: { route: 'GET /files', query: q, includeSla: true } }); } catch {}
     return res.json({ ...list, results: enriched });
   } catch (e: any) {
     // fall back to original list on errors
+    try { await logAudit({ req, action: 'Read', details: { route: 'GET /files', query: q, includeSla: true, error: e?.message } }); } catch {}
     return res.json(list);
   }
 });
@@ -130,7 +134,7 @@ router.get('/:id', requireAuth as any, async (req, res) => {
   try {
     const sla = await computeSlaStatus(id as any);
     if (sla) {
-      return res.json({
+      const body = {
         ...f,
         sla_minutes: sla.sla_minutes,
         sla_consumed_minutes: sla.consumed_minutes,
@@ -143,11 +147,14 @@ router.get('/:id', requireAuth as any, async (req, res) => {
         sla_pause_on_hold: sla.pause_on_hold,
         sla_policy_name: sla.policy_name,
         sla_policy_id_resolved: sla.policy_id,
-      });
+      };
+      try { await logAudit({ req, fileId: id, action: 'Read', details: { route: 'GET /files/:id', includeSla: true } }); } catch {}
+      return res.json(body);
     }
   } catch (e) {
     // ignore SLA compute errors and return base file
   }
+  try { await logAudit({ req, fileId: id, action: 'Read', details: { route: 'GET /files/:id' } }); } catch {}
   res.json(f);
 });
 
@@ -169,6 +176,7 @@ router.post('/:id/token', requireAuth as any, async (req, res) => {
   const secret = process.env.FILE_SHARE_SECRET || process.env.JWT_SECRET || 'dev-file-share-secret';
   // default expire in 7 days
   const token = jwt.sign({ fileId: id }, secret, { expiresIn: '7d' });
+  try { await logAudit({ req, userId: user.id, fileId: id, action: 'Write', details: { route: 'POST /files/:id/token' } }); } catch {}
   res.json({ token });
 });
 
@@ -183,6 +191,7 @@ router.get('/shared/files/:token', requireAuth as any, async (req, res) => {
     if (!fileId || Number.isNaN(fileId)) return res.status(400).json({ error: 'invalid token payload' });
     const f = await getFile(fileId);
     if (!f) return res.status(404).json({ error: 'file not found' });
+    try { await logAudit({ req, fileId, action: 'Read', details: { route: 'GET /files/shared/files/:token' } }); } catch {}
     res.json(f);
   } catch (e: any) {
     return res.status(401).json({ error: 'invalid or expired token' });
@@ -196,6 +205,7 @@ router.get('/:id/sla', requireAuth as any, async (req, res) => {
   try {
     const s = await computeSlaStatus(id as any);
     if (s === null) return res.status(404).json({ error: 'file not found' });
+    try { await logAudit({ req, fileId: id, action: 'Read', details: { route: 'GET /files/:id/sla' } }); } catch {}
     return res.json(s);
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? 'sla compute failed' });

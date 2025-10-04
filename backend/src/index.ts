@@ -17,6 +17,7 @@ import internalRouter from './routes/internal';
 import authRouter from './routes/auth';
 import masterDataRouter from './routes/masterData';
 import { optionalAuth } from './middleware/auth';
+import { logAudit } from './middleware/audit';
 
 const app = express();
 // CORS: allow the frontend origin (configurable). Default to http://localhost:5173 for local dev.
@@ -31,12 +32,14 @@ app.get('/', (_req: Request, res: Response) => {
   res.json({ message: 'Hello from Express + TypeScript + Zod!' });
 });
 
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', async (req: Request, res: Response) => {
+  try { await logAudit({ req, action: 'Read', details: { route: 'GET /health' } }); } catch {}
   res.json({ status: 'ok' });
 });
 
-app.post('/echo', validateBody(EchoSchema), (req: Request, res: Response) => {
+app.post('/echo', validateBody(EchoSchema), async (req: Request, res: Response) => {
   const body = (req as any).validatedBody as Echo;
+  try { await logAudit({ req, action: 'Read', details: { route: 'POST /echo', body } }); } catch {}
   res.json({ received: body });
 });
 

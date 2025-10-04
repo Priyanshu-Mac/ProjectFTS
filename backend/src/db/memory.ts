@@ -35,6 +35,8 @@ type FileEvent = {
 
 const files: FileRecord[] = [];
 const events: FileEvent[] = [];
+// minimal memory audit store to capture login/register surface
+const audits: any[] = [];
 const queryThreads: any[] = [];
 // simple in-memory sla_policies map for simulation (id -> policy)
 const slaPolicies = new Map<number, { sla_minutes: number; warning_pct?: number; escalate_pct?: number; pause_on_hold?: boolean }>();
@@ -175,8 +177,8 @@ export function addEvent(file_id: number | undefined, payload: Partial<FileEvent
   if (f) {
     if (ev.to_user_id) f.current_holder_user_id = ev.to_user_id;
     // map action_type to status
-    if (ev.action_type === 'Close' || ev.action_type === 'Dispatch') f.status = 'Closed';
-    else if (ev.action_type === 'Hold') f.status = 'OnHold';
+  if (ev.action_type === 'Close' || ev.action_type === 'Dispatch') f.status = 'Closed';
+  else if (ev.action_type === 'Hold') f.status = 'OnHold';
     else if (ev.action_type === 'SeekInfo') f.status = 'WaitingOnOrigin';
     else f.status = 'WithOfficer';
   }
@@ -185,7 +187,17 @@ export function addEvent(file_id: number | undefined, payload: Partial<FileEvent
 }
 
 export function listEvents(file_id?: number) {
-  return events.filter(e => (file_id ? e.file_id === file_id : true));
+  const rows = events.filter(e => (file_id ? e.file_id === file_id : true));
+  // Attach simple user objects for from/to like pg adapter
+  return rows.map((e) => {
+    const fu = (e.from_user_id ? users.find(u => u.id === e.from_user_id) : null) || null;
+    const tu = (e.to_user_id ? users.find(u => u.id === e.to_user_id) : null) || null;
+    return {
+      ...e,
+      from_user: fu ? { id: fu.id, username: fu.username, name: fu.name, role: fu.role } : null,
+      to_user: tu ? { id: tu.id, username: tu.username, name: tu.name, role: tu.role } : null,
+    } as any;
+  });
 }
 
 export function computeSlaStatus(file_id: number) {
@@ -220,6 +232,7 @@ export function computeSlaStatus(file_id: number) {
 export function resetMemory() {
   files.length = 0;
   events.length = 0;
+  audits.length = 0;
   dailyCounters.clear();
   fileIdSeq = 1;
   eventIdSeq = 1;
@@ -246,5 +259,115 @@ export function updateUserPassword(userId: number, password_hash: string) {
   const u = users.find(x => x.id === userId);
   if (!u) return false;
   u.password_hash = password_hash;
+  return true;
+}
+
+// Movement-oriented audit logs derived from events + synthetic Created entry
+export function listAuditLogs(query?: { page?: number; limit?: number; user_id?: number; file_id?: number; action_type?: string; q?: string; date_from?: string; date_to?: string; }) {
+  const all: any[] = [];
+  // Real events
+  for (const e of events) {
+    const f = files.find(ff => ff.id === e.file_id);
+    const fu = e.from_user_id ? users.find(u => u.id === e.from_user_id) || null : null;
+    const tu = e.to_user_id ? users.find(u => u.id === e.to_user_id) || null : null;
+    all.push({
+      id: e.id,
+      file_id: e.file_id,
+      action_at: e.started_at,
+      action_type: e.action_type,
+      remarks: e.remarks || null,
+      route: null,
+      ip: null,
+      http_method: null,
+      username: null,
+      result: null,
+      from_user_id: e.from_user_id ?? null,
+      to_user_id: e.to_user_id ?? null,
+      from_user: fu ? { id: fu.id, username: fu.username, name: fu.name, role: fu.role } : null,
+      to_user: tu ? { id: tu.id, username: tu.username, name: tu.name, role: tu.role } : null,
+      file: f ? { id: f.id, file_no: f.file_no } : null,
+      file_no: f?.file_no,
+      subject: f?.subject,
+      is_synthetic: false,
+    });
+  }
+  // Synthetic Created
+  for (const f of files) {
+    const u = f.created_by ? users.find(x => x.id === f.created_by) || null : null;
+    all.push({
+      id: 1000000000 + f.id,
+      file_id: f.id,
+      action_at: f.created_at,
+      action_type: 'Created',
+      remarks: null,
+      route: null,
+      ip: null,
+      http_method: null,
+      username: null,
+      result: null,
+      from_user_id: null,
+      to_user_id: f.created_by ?? null,
+      from_user: null,
+      to_user: u ? { id: u.id, username: u.username, name: u.name, role: u.role } : null,
+      file: { id: f.id, file_no: f.file_no },
+      file_no: f.file_no,
+      subject: f.subject,
+      is_synthetic: true,
+    });
+  }
+  // Auth events (Login/Register) from memory audit store
+  for (const l of audits) {
+    const route = l?.action_details?.route || '';
+    const isLogin = /\/auth\/login/i.test(route);
+    const isRegister = /\/auth\/register/i.test(route);
+    if (!isLogin && !isRegister) continue;
+    const u = l.user_id ? users.find(x => x.id === l.user_id) || null : null;
+    all.push({
+      id: 2000000000 + (l.id || all.length + 1),
+      file_id: null,
+      action_at: l.action_at || new Date().toISOString(),
+      action_type: isLogin ? 'Login' : 'Register',
+      remarks: `${isLogin ? 'Login' : 'Register'}: ${l?.action_details?.username || ''}`.trim(),
+      route: l?.action_details?.route || null,
+      ip: l?.action_details?.ip || null,
+      http_method: l?.action_details?.method || null,
+      username: l?.action_details?.username || null,
+      result: l?.action_details?.result || null,
+      from_user_id: null,
+      to_user_id: l.user_id ?? null,
+      from_user: null,
+      to_user: u ? { id: u.id, username: u.username, name: u.name, role: u.role } : null,
+      file: null,
+      file_no: null,
+      subject: null,
+      is_synthetic: true,
+    });
+  }
+
+  // Filters
+  let res = all;
+  if (query?.file_id) res = res.filter(r => r.file_id === query.file_id);
+  if (query?.user_id) res = res.filter(r => r.from_user_id === query.user_id || r.to_user_id === query.user_id);
+  if (query?.action_type) res = res.filter(r => r.action_type === query.action_type);
+  if (query?.q) {
+    const ql = query.q.toLowerCase();
+    res = res.filter(r => (r.remarks || '').toLowerCase().includes(ql) || (r.file_no || '').toLowerCase().includes(ql) || (r.subject || '').toLowerCase().includes(ql));
+  }
+  if (query?.date_from) res = res.filter(r => r.action_at >= query.date_from!);
+  if (query?.date_to) res = res.filter(r => r.action_at <= query.date_to!);
+
+  // Sort desc by action_at
+  res.sort((a,b) => (a.action_at < b.action_at ? 1 : a.action_at > b.action_at ? -1 : 0));
+
+  const limit = query?.limit && query.limit > 0 ? Math.min(query.limit, 200) : 50;
+  const page = query?.page && query.page > 0 ? query.page : 1;
+  const start = (page - 1) * limit;
+  const paged = res.slice(start, start + limit);
+  return { total: res.length, page, limit, results: paged };
+}
+
+// Hook for middleware to push minimal auth audit entries in memory mode
+export function addAuditLog(entry: { user_id?: number | null; action_type?: string; action_details?: any }) {
+  audits.push({ id: audits.length + 1, action_at: new Date().toISOString(), ...entry });
   return true;
 }

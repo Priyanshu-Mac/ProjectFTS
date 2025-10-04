@@ -185,6 +185,9 @@ export async function addEvent(file_id: number|undefined, payload: any) {
   return withClient(async (client) => {
     await client.query('BEGIN');
     try {
+      // Read existing holder to preserve assignment on Hold if no to_user_id provided
+      const existingFileR = await client.query('SELECT current_holder_user_id FROM files WHERE id = $1', [file_id]);
+      const existingHolder: number | null = existingFileR.rowCount ? (existingFileR.rows[0].current_holder_user_id ?? null) : null;
       // close previous open event (ended_at = now)
       await client.query('UPDATE file_events SET ended_at = CURRENT_TIMESTAMP WHERE file_id = $1 AND ended_at IS NULL', [file_id]);
 
@@ -238,11 +241,16 @@ export async function addEvent(file_id: number|undefined, payload: any) {
       }
 
       // update files: current_holder_user_id and status mapping
-      let newStatus = 'WithOfficer';
-      if (payload.action_type === 'Close' || payload.action_type === 'Dispatch') newStatus = 'Closed';
-      else if (payload.action_type === 'Hold') newStatus = 'OnHold';
-      else if (payload.action_type === 'SeekInfo') newStatus = 'WaitingOnOrigin';
-      await client.query('UPDATE files SET current_holder_user_id = $1, status = $2 WHERE id = $3', [payload.to_user_id ?? null, newStatus, file_id]);
+  let newStatus = 'WithOfficer';
+  if (payload.action_type === 'Close' || payload.action_type === 'Dispatch') newStatus = 'Closed';
+  else if (payload.action_type === 'Hold') newStatus = 'OnHold';
+  else if (payload.action_type === 'SeekInfo') newStatus = 'WaitingOnOrigin';
+  else if (payload.action_type === 'Escalate') newStatus = 'WithCOF';
+      // Preserve holder for Hold if to_user_id not provided
+      const nextHolder = ((payload.action_type === 'Hold') && (payload.to_user_id == null))
+        ? (existingHolder ?? null)
+        : (payload.to_user_id ?? null);
+      await client.query('UPDATE files SET current_holder_user_id = $1, status = $2 WHERE id = $3', [nextHolder, newStatus, file_id]);
 
       await client.query('COMMIT');
       return r.rows[0];
@@ -255,10 +263,25 @@ export async function addEvent(file_id: number|undefined, payload: any) {
 
 export async function listEvents(file_id?: number) {
   if (file_id) {
-    const r = await pool.query('SELECT * FROM file_events WHERE file_id = $1 ORDER BY seq_no', [file_id]);
+    const q = `SELECT e.*, 
+      json_build_object('id', fu.id, 'username', fu.username, 'name', fu.name, 'role', fu.role) AS from_user,
+      json_build_object('id', tu.id, 'username', tu.username, 'name', tu.name, 'role', tu.role) AS to_user
+      FROM file_events e
+      LEFT JOIN users fu ON fu.id = e.from_user_id
+      LEFT JOIN users tu ON tu.id = e.to_user_id
+      WHERE e.file_id = $1
+      ORDER BY e.seq_no`;
+    const r = await pool.query(q, [file_id]);
     return r.rows;
   }
-  const r = await pool.query('SELECT * FROM file_events ORDER BY id DESC LIMIT 100');
+  const q = `SELECT e.*, 
+      json_build_object('id', fu.id, 'username', fu.username, 'name', fu.name, 'role', fu.role) AS from_user,
+      json_build_object('id', tu.id, 'username', tu.username, 'name', tu.name, 'role', tu.role) AS to_user
+      FROM file_events e
+      LEFT JOIN users fu ON fu.id = e.from_user_id
+      LEFT JOIN users tu ON tu.id = e.to_user_id
+      ORDER BY e.id DESC LIMIT 100`;
+  const r = await pool.query(q);
   return r.rows;
 }
 
@@ -275,6 +298,10 @@ export async function refreshFileSla(file_id: number) {
 // User helper functions for auth
 export async function findUserByUsername(username: string) {
   const r = await pool.query('SELECT * FROM users WHERE username = $1 LIMIT 1', [username]);
+  return r.rows[0] || null;
+}
+export async function getUserById(id: number) {
+  const r = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
   return r.rows[0] || null;
 }
 export async function createUser(payload: { username: string; name: string; password_hash: string; role?: string; office_id?: number | null; email?: string | null }) {
@@ -338,49 +365,52 @@ export async function computeSlaStatus(file_id: number) {
   const openR = await pool.query('SELECT id, started_at, action_type FROM file_events WHERE file_id = $1 AND ended_at IS NULL ORDER BY seq_no DESC LIMIT 1', [file_id]);
   let ongoingMinutes = 0;
   if (openR.rowCount) {
-      const row = openR.rows[0];
-      const isExcluded = pauseOnHold && (row.action_type === 'Hold' || row.action_type === 'SeekInfo');
-      if (!isExcluded) {
-        const startedAt = row.started_at;
-        if (calendarMode) {
-          try {
-            const calc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
-            ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
-          } catch {
-            ongoingMinutes = 0;
-          }
-        } else {
-          try {
-            const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [startedAt]);
-            ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
-            // Defensive fallback: if business-time returns 0 but there is elapsed wall time, use wall-clock minutes so testing on weekends still progresses
-            if (!ongoingMinutes || ongoingMinutes <= 0) {
-              const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
-              const wcmins = Number(wc.rows?.[0]?.mins || 0);
-              if (wcmins > 0) ongoingMinutes = wcmins;
-            }
-          } catch (e: any) {
-            // If DB function is missing or errors, default ongoing minutes to 0 so endpoint does not fail
-            ongoingMinutes = 0;
-          }
+    const row = openR.rows[0];
+    const isExcluded = pauseOnHold && (row.action_type === 'Hold' || row.action_type === 'SeekInfo');
+    if (!isExcluded) {
+      const startedAt = row.started_at;
+      if (calendarMode) {
+        try {
+          const calc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
+          ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+        } catch {
+          ongoingMinutes = 0;
         }
       } else {
-        // No open event found; fall back to computing from a file-level timestamp so SLA progresses even before first event is created
-        const fallbackStart = file.date_received_accounts || file.date_initiated || file.created_at;
-        if (fallbackStart) {
-          try {
-            if (calendarMode) {
-              const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [fallbackStart]);
-              ongoingMinutes = Number(wc.rows?.[0]?.mins || 0);
-            } else {
-              const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [fallbackStart]);
-              ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
-            }
-          } catch {
-            ongoingMinutes = 0;
+        try {
+          const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [startedAt]);
+          ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+          // Defensive fallback: if business-time returns 0 but there is elapsed wall time, use wall-clock minutes so testing on weekends still progresses
+          if (!ongoingMinutes || ongoingMinutes <= 0) {
+            const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [startedAt]);
+            const wcmins = Number(wc.rows?.[0]?.mins || 0);
+            if (wcmins > 0) ongoingMinutes = wcmins;
           }
+        } catch (e: any) {
+          // If DB function is missing or errors, default ongoing minutes to 0 so endpoint does not fail
+          ongoingMinutes = 0;
         }
       }
+    } else {
+      // When paused (Hold/SeekInfo) and policy says to pause, do not accrue ongoing minutes.
+      ongoingMinutes = 0;
+    }
+  } else {
+    // No open event found; fall back to computing from a file-level timestamp so SLA progresses even before first event is created
+    const fallbackStart = file.date_received_accounts || file.date_initiated || file.created_at;
+    if (fallbackStart) {
+      try {
+        if (calendarMode) {
+          const wc = await pool.query('SELECT FLOOR(EXTRACT(EPOCH FROM (NOW()::timestamptz - $1::timestamptz))/60) as mins', [fallbackStart]);
+          ongoingMinutes = Number(wc.rows?.[0]?.mins || 0);
+        } else {
+          const calc = await pool.query('SELECT public.calculate_business_minutes($1::timestamptz, NOW()::timestamptz) as mins', [fallbackStart]);
+          ongoingMinutes = Number(calc.rows?.[0]?.mins || 0);
+        }
+      } catch {
+        ongoingMinutes = 0;
+      }
+    }
   }
 
   const consumed = closedSum + ongoingMinutes;
@@ -399,4 +429,172 @@ export async function computeSlaStatus(file_id: number) {
     policy_name: policyName,
     calc_mode: calendarMode ? 'calendar' : 'business',
   };
+}
+
+// Audit logging
+export async function addAuditLog(entry: { file_id?: number | null; user_id?: number | null; action_type: 'Read'|'Write'|'Delete'; action_details?: any }) {
+  try {
+    const q = `INSERT INTO audit_logs(file_id, user_id, action_type, action_details) VALUES($1,$2,$3,$4::jsonb) RETURNING id`;
+    const details = entry.action_details == null ? null : JSON.stringify(entry.action_details);
+    const vals = [entry.file_id ?? null, entry.user_id ?? null, entry.action_type, details];
+    await pool.query(q, vals);
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[audit] failed to insert audit log', (e as any)?.message || e);
+    return false;
+  }
+}
+
+export async function listAuditLogs(query?: {
+  page?: number; limit?: number; user_id?: number; file_id?: number; action_type?: string; q?: string; date_from?: string; date_to?: string;
+}) {
+  // Reinterpret "audit logs" as file activity: file_events plus a synthetic Created entry
+  const conditions: string[] = [];
+  const vals: any[] = [];
+  // We'll filter after union using plain columns to avoid jsonb extraction
+  if (query?.file_id) { vals.push(query.file_id); conditions.push(`lu.file_id = $${vals.length}`); }
+  if (query?.user_id) {
+    vals.push(query.user_id); const idx = vals.length;
+    conditions.push(`(lu.from_user_id = $${idx} OR lu.to_user_id = $${idx})`);
+  }
+  if (query?.action_type) { vals.push(query.action_type); conditions.push(`lu.action_type = $${vals.length}`); }
+  if (query?.q) {
+    const idx1 = vals.push(`%${query.q}%`);
+    const idx2 = vals.push(`%${query.q}%`);
+    const idx3 = vals.push(`%${query.q}%`);
+    conditions.push(`(lu.remarks ILIKE $${idx1} OR lu.file_no ILIKE $${idx2} OR lu.subject ILIKE $${idx3})`);
+  }
+  if (query?.date_from) { vals.push(query.date_from); conditions.push(`lu.action_at >= $${vals.length}`); }
+  if (query?.date_to) { vals.push(query.date_to); conditions.push(`lu.action_at <= $${vals.length}`); }
+  const whereSql = conditions.length ? ('WHERE ' + conditions.join(' AND ')) : '';
+
+  const limit = query?.limit && query.limit > 0 ? Math.min(query.limit, 200) : 50;
+  const page = query?.page && query.page > 0 ? query.page : 1;
+  const offset = (page - 1) * limit;
+
+  const sql = `
+    WITH logs_union AS (
+      SELECT 
+        e.id::bigint AS id,
+        e.file_id::bigint AS file_id,
+        e.started_at AS action_at,
+        e.action_type::text AS action_type,
+        e.remarks::text AS remarks,
+        e.from_user_id::bigint AS from_user_id,
+        e.to_user_id::bigint AS to_user_id,
+        e.ended_at,
+        e.business_minutes_held,
+        f.file_no::text AS file_no,
+        f.subject::text AS subject,
+        NULL::text AS route,
+        NULL::text AS ip,
+        NULL::text AS http_method,
+        NULL::text AS username,
+        NULL::text AS result,
+        json_build_object('id', fu.id, 'username', fu.username, 'name', fu.name, 'role', fu.role) AS from_user,
+        json_build_object('id', tu.id, 'username', tu.username, 'name', tu.name, 'role', tu.role) AS to_user,
+        json_build_object('id', f.id, 'file_no', f.file_no) AS file,
+        false AS is_synthetic
+      FROM file_events e
+      LEFT JOIN users fu ON fu.id = e.from_user_id
+      LEFT JOIN users tu ON tu.id = e.to_user_id
+      LEFT JOIN files f ON f.id = e.file_id
+      UNION ALL
+      SELECT 
+        (1000000000 + f.id)::bigint AS id,
+        f.id::bigint AS file_id,
+        f.created_at AS action_at,
+        'Created'::text AS action_type,
+        NULL::text AS remarks,
+        NULL::bigint AS from_user_id,
+        f.created_by::bigint AS to_user_id,
+        NULL::timestamptz AS ended_at,
+        NULL::int AS business_minutes_held,
+        f.file_no::text AS file_no,
+        f.subject::text AS subject,
+        NULL::text AS route,
+        NULL::text AS ip,
+        NULL::text AS http_method,
+        NULL::text AS username,
+        NULL::text AS result,
+        NULL::json AS from_user,
+        json_build_object('id', u.id, 'username', u.username, 'name', u.name, 'role', u.role) AS to_user,
+        json_build_object('id', f.id, 'file_no', f.file_no) AS file,
+        true AS is_synthetic
+      FROM files f
+      LEFT JOIN users u ON u.id = f.created_by
+      UNION ALL
+      SELECT 
+        (2000000000 + l.id)::bigint AS id,
+        NULL::bigint AS file_id,
+        l.action_at AS action_at,
+        CASE 
+          WHEN (l.action_details->>'route') ILIKE '%/auth/login%' THEN 'Login'
+          WHEN (l.action_details->>'route') ILIKE '%/auth/register%' THEN 'Register'
+          ELSE l.action_type::text
+        END AS action_type,
+        COALESCE(
+          CASE 
+            WHEN (l.action_details->>'route') ILIKE '%/auth/login%' THEN 'Login: ' || COALESCE(l.action_details->>'username','')
+            WHEN (l.action_details->>'route') ILIKE '%/auth/register%' THEN 'Register: ' || COALESCE(l.action_details->>'username','')
+            ELSE NULL
+          END,
+          NULL
+        ) AS remarks,
+        NULL::bigint AS from_user_id,
+        l.user_id::bigint AS to_user_id,
+        NULL::timestamptz AS ended_at,
+        NULL::int AS business_minutes_held,
+        NULL::text AS file_no,
+        NULL::text AS subject,
+        (l.action_details->>'route')::text AS route,
+        (l.action_details->>'ip')::text AS ip,
+        (l.action_details->>'method')::text AS http_method,
+        (l.action_details->>'username')::text AS username,
+        (l.action_details->>'result')::text AS result,
+        NULL::json AS from_user,
+        json_build_object('id', u2.id, 'username', u2.username, 'name', u2.name, 'role', u2.role) AS to_user,
+        NULL::json AS file,
+        true AS is_synthetic
+      FROM audit_logs l
+      LEFT JOIN users u2 ON u2.id = l.user_id
+      WHERE (l.action_details->>'route') ILIKE '%/auth/login%' OR (l.action_details->>'route') ILIKE '%/auth/register%'
+    )
+    SELECT * FROM logs_union lu
+    ${whereSql}
+    ORDER BY lu.action_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const r = await pool.query(sql, vals);
+  let total = r.rowCount || 0;
+  try {
+    const countSql = `WITH logs_union AS (
+      SELECT e.id::bigint AS id, e.file_id::bigint AS file_id, e.started_at AS action_at, e.action_type::text AS action_type, e.remarks::text AS remarks,
+        e.from_user_id::bigint AS from_user_id, e.to_user_id::bigint AS to_user_id, f.file_no::text AS file_no, f.subject::text AS subject
+      FROM file_events e LEFT JOIN files f ON f.id = e.file_id
+      UNION ALL
+      SELECT (1000000000 + f.id)::bigint AS id, f.id::bigint AS file_id, f.created_at AS action_at, 'Created'::text AS action_type, NULL::text AS remarks,
+        NULL::bigint AS from_user_id, f.created_by::bigint AS to_user_id, f.file_no::text AS file_no, f.subject::text AS subject
+      FROM files f
+      UNION ALL
+      SELECT (2000000000 + l.id)::bigint AS id, NULL::bigint AS file_id, l.action_at AS action_at,
+        CASE WHEN (l.action_details->>'route') ILIKE '%/auth/login%' THEN 'Login'
+        WHEN (l.action_details->>'route') ILIKE '%/auth/register%' THEN 'Register'
+        ELSE l.action_type::text END AS action_type,
+        COALESCE(CASE WHEN (l.action_details->>'route') ILIKE '%/auth/login%' THEN 'Login: ' || COALESCE(l.action_details->>'username','')
+            WHEN (l.action_details->>'route') ILIKE '%/auth/register%' THEN 'Register: ' || COALESCE(l.action_details->>'username','')
+            ELSE NULL END, NULL) AS remarks,
+        NULL::bigint AS from_user_id, l.user_id::bigint AS to_user_id, NULL::text AS file_no, NULL::text AS subject
+      FROM audit_logs l
+      WHERE (l.action_details->>'route') ILIKE '%/auth/login%' OR (l.action_details->>'route') ILIKE '%/auth/register%'
+    )
+    SELECT COUNT(*) AS cnt FROM logs_union lu ${whereSql}`;
+    const cr = await pool.query(countSql, vals);
+    total = Number(cr.rows?.[0]?.cnt || 0);
+  } catch (e) {
+    // ignore count errors
+  }
+  return { total, page, limit, results: r.rows };
 }

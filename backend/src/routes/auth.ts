@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createUser, findUserByUsername } from '../db/index';
+import { logAudit } from '../middleware/audit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -25,8 +26,9 @@ router.post('/register', async (req, res) => {
   if (existing) return res.status(409).json({ error: 'username taken' });
   const hash = await bcrypt.hash(password, 10);
   try {
-    const user = await createUser({ username, name, role, office_id, email, password_hash: hash } as any);
-    res.status(201).json({ id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk' });
+  const user = await createUser({ username, name, role, office_id, email, password_hash: hash } as any);
+  try { await logAudit({ req, userId: user.id, action: 'Write', details: { route: 'POST /auth/register', username } }); } catch {}
+  res.status(201).json({ id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk' });
   } catch (e: any) {
     // Handle duplicate email or other constraint violations
     const msg = e?.message || '';
@@ -59,7 +61,9 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash || '');
   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
   const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
-res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk' } });  
+  // Keep original role casing as stored (e.g., 'AccountsOfficer'); frontend normalizes to 'accounts_officer'
+  try { await logAudit({ req, userId: user.id, action: 'Read', details: { route: 'POST /auth/login', username: user.username, result: 'ok' } }); } catch {}
+  res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk', office_id: (user as any).office_id ?? null } });  
 });
 
 export default router;

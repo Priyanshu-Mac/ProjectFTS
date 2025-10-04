@@ -7,6 +7,7 @@ export interface User {
   // server may return additional optional fields; keep them optional on the frontend
   role?: 'clerk' | 'accounts_officer' | 'cof' | 'admin';
   office?: string;
+  office_id?: number | null;
   isActive?: boolean;
 }
 
@@ -27,13 +28,25 @@ export interface LoginResponse {
 }
 
 export const authService = {
+  // Normalize various server role strings to frontend canonical slugs
+  _normalizeRole(role: any): 'clerk' | 'accounts_officer' | 'cof' | 'admin' | undefined {
+    if (!role) return undefined;
+    const r = String(role).toLowerCase();
+    if (r === 'clerk') return 'clerk';
+    if (r === 'accounts_officer' || r === 'accountsofficer' || r === 'accounts officer') return 'accounts_officer';
+    if (r === 'cof') return 'cof';
+    if (r === 'admin' || r === 'administrator') return 'admin';
+    return r as any;
+  },
+
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     const response = await api.post('/auth/login', credentials);
     // New API returns { token, user } on success
     const data: LoginResponse = response.data;
     if (data?.token) {
       // Normalize role casing (server may return 'Clerk' vs 'clerk')
-      const user = { ...data.user, role: typeof data.user.role === 'string' ? data.user.role.toLowerCase() : data.user.role };
+      const normRole = authService._normalizeRole((data.user as any).role);
+      const user = { ...data.user, role: normRole } as User;
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user_data', JSON.stringify(user));
     }
@@ -59,7 +72,19 @@ export const authService = {
 
   getCurrentUser(): User | null {
     const userData = localStorage.getItem('user_data');
-    return userData ? JSON.parse(userData) : null;
+    if (!userData) return null;
+    try {
+      const parsed = JSON.parse(userData);
+      const normRole = authService._normalizeRole(parsed?.role);
+      if (normRole && normRole !== parsed?.role) {
+        const updated = { ...parsed, role: normRole };
+        localStorage.setItem('user_data', JSON.stringify(updated));
+        return updated;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   },
 
   isAuthenticated(): boolean {

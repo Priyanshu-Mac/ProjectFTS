@@ -10,6 +10,9 @@ let computeSlaStatus = (mem as any).computeSlaStatus as any;
 let refreshFileSla = async (_id: number) => false as any;
 let createUser = (mem as any).createUser as any;
 let findUserByUsername = (mem as any).findUserByUsername as any;
+let getUserById = (mem as any).getUserById as any;
+let addAuditLog = async (_entry: any) => true as any;
+let listAuditLogs = (mem as any).listAuditLogs as any;
 
 if (process.env.DATABASE_URL) {
   try {
@@ -26,6 +29,9 @@ if (process.env.DATABASE_URL) {
     refreshFileSla = pg.refreshFileSla;
     createUser = pg.createUser;
     findUserByUsername = pg.findUserByUsername;
+    getUserById = pg.getUserById;
+    addAuditLog = pg.addAuditLog;
+  listAuditLogs = pg.listAuditLogs;
   } catch (e: any) {
     // fall back to memory and log the error to help debugging
     // eslint-disable-next-line no-console
@@ -33,7 +39,7 @@ if (process.env.DATABASE_URL) {
   }
 }
 
-export { generateFileNo, createFile, listFiles, getFile, addEvent, listEvents, computeSlaStatus, createUser, findUserByUsername, refreshFileSla };
+export { generateFileNo, createFile, listFiles, getFile, addEvent, listEvents, computeSlaStatus, createUser, findUserByUsername, getUserById, refreshFileSla, addAuditLog, listAuditLogs };
 
 // Log which adapter is in use (do not print connection string)
 try {

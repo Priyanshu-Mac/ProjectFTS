@@ -12,6 +12,8 @@ import DashboardPage from './pages/DashboardPage';
 import FileIntakePage from './pages/FileIntakePage';
 import FileSearchPage from './pages/FileSearchPage';
 import FileDetailPage from './pages/FileDetailPage';
+import MoveFilePage from './pages/MoveFilePage';
+import AuditLogsPage from './pages/AuditLogsPage';
 
 // Services
 import { authService } from './services/authService';
@@ -47,11 +49,11 @@ function App() {
               }
             />
             
-            {/* File Intake - Clerk and Admin only */}
+            {/* File Intake - Clerk, COF and Admin */}
             <Route
               path="/file-intake"
               element={
-                <ProtectedRoute allowedRoles={['clerk', 'admin']}>
+                <ProtectedRoute allowedRoles={['clerk', 'cof', 'admin']}>
                   <Layout>
                     <FileIntakePage />
                   </Layout>
@@ -59,16 +61,14 @@ function App() {
               }
             />
             
-            {/* My Files - Officers and above */}
+
+            {/* Move File - Officers and above */}
             <Route
-              path="/my-files"
+              path="/move-file"
               element={
                 <ProtectedRoute allowedRoles={['accounts_officer', 'cof', 'admin']}>
                   <Layout>
-                    <div className="text-center py-12">
-                      <h2 className="text-2xl font-bold text-gray-900">My Files</h2>
-                      <p className="text-gray-600 mt-2">Coming soon...</p>
-                    </div>
+                    <MoveFilePage />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -114,6 +114,18 @@ function App() {
                       <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
                       <p className="text-gray-600 mt-2">Coming soon...</p>
                     </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Audit Logs - COF and Admin only */}
+            <Route
+              path="/audit-logs"
+              element={
+                <ProtectedRoute allowedRoles={['cof', 'admin']}>
+                  <Layout>
+                    <AuditLogsPage />
                   </Layout>
                 </ProtectedRoute>
               }
