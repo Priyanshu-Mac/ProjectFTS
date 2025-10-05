@@ -10,10 +10,12 @@ export const FileCreateSchema = z.object({
   confidentiality: z.boolean().optional(),
   date_initiated: z.string().optional(),
   date_received_accounts: z.string().optional(),
-  forward_to_officer_id: z.number().int().positive(),
-  attachments: z.array(z.any()).optional(),
+  forward_to_officer_id: z.number().int().positive().optional(),
   save_as_draft: z.boolean().optional(),
   remarks: z.string().optional(),
+}).refine((data) => !!data.save_as_draft || !!data.forward_to_officer_id, {
+  message: 'forward_to_officer_id is required when not saving as draft',
+  path: ['forward_to_officer_id'],
 });
 
 export const FileListQuery = z.object({

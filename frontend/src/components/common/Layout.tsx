@@ -67,8 +67,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       roles: ['cof', 'admin'] 
     },
     { 
-      name: 'Analytics', 
-      href: '/analytics', 
+      name: 'Officer Kanban', 
+      href: '/kanban', 
+      icon: FolderOpen, 
+      roles: ['accounts_officer', 'cof', 'admin'] 
+    },
+    { 
+      name: 'Reports / Exports', 
+      href: '/reports', 
       icon: BarChart3, 
       roles: ['cof', 'admin'] 
     },
@@ -77,6 +83,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: '/audit-logs', 
       icon: FileText, 
       roles: ['cof', 'admin'] 
+    },
+    { 
+      name: 'Admin', 
+      href: '/admin', 
+      icon: User, 
+      roles: ['admin'] 
     },
     { 
       name: 'Master Data', 

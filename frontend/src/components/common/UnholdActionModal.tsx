@@ -62,7 +62,6 @@ export default function UnholdActionModal({
         to_user_id: requiresToUser ? Number(toUserId) : undefined,
         action_type: actionType,
         remarks: remarks.trim() || undefined,
-        attachments: [],
       });
       toast.success('File unheld and moved');
       onDone && onDone();

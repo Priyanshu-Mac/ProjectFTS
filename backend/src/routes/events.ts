@@ -47,7 +47,6 @@ router.post('/', requireAuth as any, async (req, res) => {
     to_user_id: body.to_user_id ?? actor ?? null,
     action_type: body.action_type,
     remarks: body.remarks ?? null,
-    attachments_json: body.attachments ?? null,
   };
 
   // If action is Hold and no explicit to_user_id was provided, keep/assign to actor or last holder
@@ -85,8 +84,28 @@ router.post('/', requireAuth as any, async (req, res) => {
   res.status(201).json(ev);
 });
 
-router.get('/', async (req, res) => {
+router.get('/', requireAuth as any, async (req, res) => {
   const id = Number((req.params as any).id);
+  if ((req.query as any)?.t) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  // Visibility restriction is enforced by the file detail route; align here too
+  try {
+    const f = await getFile(id);
+    if (!f) return res.status(404).json({ error: 'file not found' });
+    const user = (req as any).user;
+    const viewerId = Number(user?.id ?? 0);
+    // require db access to user to get role
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getUserById } = require('../db/index');
+    let role = '';
+    try { const u = await getUserById(viewerId); role = String(u?.role || '').toUpperCase(); } catch {}
+    const isPrivileged = role === 'COF' || role === 'ADMIN';
+    const isCreator = viewerId && Number(f.created_by ?? 0) === viewerId;
+    if (!isCreator && !isPrivileged) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+  } catch { return res.status(403).json({ error: 'forbidden' }); }
   const list = await listEvents(id);
   try { await logAudit({ req, fileId: id, action: 'Read', details: { route: 'GET /files/:id/events', count: Array.isArray(list) ? list.length : 0 } }); } catch {}
   // list already contains from_user/to_user JSON objects when using pg adapter

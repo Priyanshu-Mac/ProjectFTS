@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   FileText, 
@@ -12,13 +13,15 @@ import { fileService } from '../services/fileService';
 import { authService } from '../services/authService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import StatusBadge from '../components/common/StatusBadge';
-import { formatDistanceToNow, format } from 'date-fns';
+import { format } from 'date-fns';
 import UnholdActionModal from '../components/common/UnholdActionModal';
+import SlaReasonModal from '../components/common/SlaReasonModal';
 
 const DashboardPage = () => {
   const queryClient = useQueryClient();
   const [unholdModalOpen, setUnholdModalOpen] = React.useState(false);
   const [selectedFileId, setSelectedFileId] = React.useState<number | null>(null);
+  const [slaModalOpen, setSlaModalOpen] = React.useState(false);
   const currentUser = authService.getCurrentUser();
   const isCOF = currentUser?.role === 'cof' || currentUser?.role === 'admin';
   const isClerk = currentUser?.role === 'clerk';
@@ -161,12 +164,25 @@ const DashboardPage = () => {
               setUnholdModalOpen(true);
               return Promise.resolve();
             }}
+            onSlaReason={(fileId: number) => {
+              setSelectedFileId(fileId);
+              setSlaModalOpen(true);
+              return Promise.resolve();
+            }}
           />
           <UnholdActionModal
             open={unholdModalOpen}
             onClose={() => setUnholdModalOpen(false)}
             fileId={selectedFileId || 0}
             currentUser={currentUser}
+            onDone={async () => {
+              await queryClient.invalidateQueries({ queryKey: ['dashboard', 'officer'] });
+            }}
+          />
+          <SlaReasonModal
+            open={slaModalOpen}
+            onClose={() => setSlaModalOpen(false)}
+            fileId={selectedFileId || 0}
             onDone={async () => {
               await queryClient.invalidateQueries({ queryKey: ['dashboard', 'officer'] });
             }}
@@ -237,7 +253,8 @@ const ClerkDashboard = ({ files = [] as any[] }) => {
 };
 
 const ExecutiveDashboard = ({ data }: { data: any }) => {
-  const { kpis = {}, oldest_files = [], longest_delays = [], pendency_by_office = [], imminent_breaches = [], officer_workload = [], aging_buckets = [] } = (data || {});
+  const navigate = useNavigate();
+  const { kpis = {}, oldest_files = [], longest_delays = [], breached_files = [], pendency_by_office = [], imminent_breaches = [], officer_workload = [], aging_buckets = [] } = (data || {});
 
   const maxPendency = Math.max(1, ...pendency_by_office.map((o: any) => Number(o.pending_count || 0)));
   const catColors = ['bg-blue-400','bg-green-400','bg-yellow-400','bg-red-400','bg-purple-400','bg-pink-400','bg-teal-400','bg-indigo-400'];
@@ -270,7 +287,7 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
         />
         <KPICard
           title="Overdue Files"
-          value={longest_delays.length}
+          value={typeof kpis.overdue_count !== 'undefined' ? kpis.overdue_count : longest_delays.length}
           subtitle="Requiring immediate attention"
           icon={AlertTriangle}
           color="red"
@@ -279,17 +296,29 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
 
       {/* Info/Delay Bar and Oldest 5 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Delay Bar: Longest Delays */}
+        {/* Delay Bar: Longest Delays (exclude breached) */}
         <div className="card">
           <div className="card-header">
             <h3 className="text-lg font-medium text-gray-900">Longest Delays</h3>
-            <p className="text-sm text-gray-500">Files with highest SLA consumption</p>
+            <p className="text-sm text-gray-500">Files with highest SLA consumption (not breached)</p>
           </div>
           <div className="card-body">
             {longest_delays.length > 0 ? (
               <div className="space-y-3">
-                {longest_delays.slice(0, 5).map((file: any) => (
-                  <a key={file.id} href={`/files/${file.id}`} className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition">
+                {longest_delays.slice(0, 5).map((file: any) => {
+                  const mins = Number(file.sla_remaining_minutes ?? NaN);
+                  const fmtMins = (m: number) => {
+                    if (!Number.isFinite(m)) return '—';
+                    if (m <= 0) return 'Due now';
+                    const d = Math.floor(m / (60 * 24));
+                    const h = Math.floor((m % (60 * 24)) / 60);
+                    const mm = Math.floor(m % 60);
+                    if (d > 0) return `${d}d ${h}h`;
+                    if (h > 0) return `${h}h ${mm}m`;
+                    return `${mm}m`;
+                  };
+                  return (
+                  <a key={file.id} href="#" onClick={(e) => { e.preventDefault(); navigate('/file-search', { state: { openId: file.id } }); }} className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium text-gray-900 truncate">{file.file_no}</div>
@@ -299,11 +328,12 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
                       <div className="text-xs text-gray-500">With: {file.currentHolder?.full_name || file.current_holder_user_id}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-red-600 font-medium">{formatDistanceToNow(new Date(file.date_received_accounts || file.created_at), { addSuffix: true })}</div>
-                      <div className="text-xs text-gray-500">{file.sla_percent ?? 0}% used</div>
+                      <div className="text-xs text-gray-800 font-medium">Remaining: {fmtMins(mins)}</div>
+                      <div className="text-xs text-gray-600">{file.sla_percent ?? 0}% used</div>
                     </div>
                   </a>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500 text-center py-4">No overdue files</p>
@@ -321,7 +351,7 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
             {oldest_files.length > 0 ? (
               <div className="space-y-3">
                 {oldest_files.map((file: any) => (
-                  <a key={file.id} href={`/files/${file.id}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                  <a key={file.id} href="#" onClick={(e) => { e.preventDefault(); navigate('/file-search', { state: { openId: file.id } }); }} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-900 truncate">{file.file_no}</div>
                       <div className="text-xs text-gray-500 truncate">{file.subject}</div>
@@ -338,6 +368,38 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
               <p className="text-gray-500 text-center py-4">No open files</p>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Breached Files (separate, compact) */}
+      <div className="card mt-6">
+        <div className="card-header">
+          <h3 className="text-lg font-medium text-gray-900">Breached Files</h3>
+          <p className="text-sm text-gray-500">Files that have exceeded SLA</p>
+        </div>
+        <div className="card-body">
+          {breached_files.length > 0 ? (
+            <div className="space-y-3">
+              {breached_files.slice(0, 8).map((file: any) => (
+                <a key={file.id} href="#" onClick={(e) => { e.preventDefault(); navigate('/file-search', { state: { openId: file.id } }); }} className="flex items-center justify-between p-3 bg-red-100 rounded-lg hover:bg-red-200 transition">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-gray-900 truncate">{file.file_no}</div>
+                      <StatusBadge status={file.sla_status} />
+                    </div>
+                    <div className="text-xs text-gray-600 truncate">{file.subject}</div>
+                    <div className="text-xs text-gray-600">With: {file.currentHolder?.full_name || file.current_holder_user_id}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-red-700 font-medium">{file.sla_percent ?? 0}% used</div>
+                    <div className="text-xs text-gray-600">{format(new Date(file.date_received_accounts || file.created_at), 'MMM dd, yyyy')}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">No breached files</p>
+          )}
         </div>
       </div>
 
@@ -465,7 +527,7 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
                   <tbody className="table-body">
                     {imminent_breaches.map((file: any) => (
                       <tr key={file.id} className="hover:bg-gray-50">
-                        <td className="font-medium"><a className="text-blue-600 hover:underline" href={`/files/${file.id}`}>{file.file_no}</a></td>
+                        <td className="font-medium"><a className="text-blue-600 hover:underline" href="#" onClick={(e) => { e.preventDefault(); navigate('/file-search', { state: { openId: file.id } }); }}>{file.file_no}</a></td>
                         <td className="max-w-xs truncate">{file.subject}</td>
                         <td>{file.sla_remaining_minutes ?? '—'}</td>
                         <td>
@@ -484,7 +546,7 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
   );
 };
 
-const OfficerDashboard = ({ data, onUnhold }: { data: any; onUnhold: (fileId: number) => Promise<void> }) => {
+const OfficerDashboard = ({ data, onUnhold, onSlaReason }: { data: any; onUnhold: (fileId: number) => Promise<void>; onSlaReason: (fileId: number) => Promise<void> }) => {
   const { my_queue = { assigned: [], due_soon: [], overdue: [], on_hold: [] }, summary = { total_assigned: 0, total_due_soon: 0, total_overdue: 0 } } = (data || {});
 
   return (
@@ -537,6 +599,17 @@ const OfficerDashboard = ({ data, onUnhold }: { data: any; onUnhold: (fileId: nu
           files={my_queue.overdue} 
           emptyMessage="No overdue files"
           highlight="danger"
+          renderAction={(file: any) => (
+            (!file?.has_sla_reason) ? (
+            <button
+              type="button"
+              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-md border border-transparent text-white bg-red-600 hover:bg-red-700"
+              onClick={() => onSlaReason(Number(file.id))}
+            >
+              Add Reason
+            </button>
+            ) : null
+          )}
         />
         
         {/* On Hold */}

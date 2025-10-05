@@ -17,7 +17,6 @@ type Payload = {
   date_received_accounts?: string | null;
   forward_to_officer_id?: number | null;
   save_as_draft?: boolean;
-  attachments?: Array<{ name?: string; url?: string }> | null;
   remarks?: string | null;
 };
 
@@ -39,7 +38,6 @@ export default function FileIntakePage() {
     date_received_accounts: undefined,
     forward_to_officer_id: undefined,
     save_as_draft: false,
-    attachments: undefined,
     remarks: undefined,
   });
 
@@ -94,14 +92,16 @@ export default function FileIntakePage() {
         date_received_accounts: form.date_received_accounts ?? null,
         forward_to_officer_id: form.forward_to_officer_id ?? null,
         save_as_draft: !!form.save_as_draft,
-        attachments: form.attachments ?? null,
         remarks: form.remarks ?? null,
       };
       const data = await fileService.createFile(payload);
       toast.success('File created — ' + (data?.file?.file_no ?? ''));
-      // navigate to the created file view if the backend returned an id
-      if (data?.file?.id) navigate(`/files/${data.file.id}`);
-      else navigate('/');
+      // Redirect to File Search and auto-open the newly created file
+      if (data?.file?.id) {
+        navigate('/file-search', { state: { openId: data.file.id } });
+      } else {
+        navigate('/file-search');
+      }
     } catch (err: any) {
       toast.error(String(err?.message ?? err));
     } finally {
@@ -326,22 +326,7 @@ export default function FileIntakePage() {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Attachments (comma separated file paths)</label>
-          <input
-            value={form.attachments ? form.attachments.map((a) => a.url).join(',') : ''}
-            onChange={(e) =>
-              update(
-                'attachments',
-                e.target.value
-                  ? e.target.value.split(',').map((u) => ({ url: u.trim(), name: undefined }))
-                  : undefined,
-              )
-            }
-            className="mt-1 block w-full border rounded p-2"
-            placeholder="/uploads/file1.pdf, /uploads/file2.jpg"
-          />
-        </div>
+        {/* Attachments removed entirely */}
 
         <div>
           <label className="block text-sm font-medium text-gray-700">Remarks</label>

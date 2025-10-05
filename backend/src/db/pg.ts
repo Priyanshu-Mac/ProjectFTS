@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import crypto from 'crypto';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -196,32 +197,9 @@ export async function addEvent(file_id: number|undefined, payload: any) {
       const seqR = await client.query(qSeq, [file_id]);
       const seq = (seqR.rows[0].maxseq || 0) + 1;
 
-      const q = `INSERT INTO file_events(file_id, seq_no, from_user_id, to_user_id, action_type, started_at, ended_at, business_minutes_held, remarks, attachments_json)
-        VALUES($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,$6,$7,$8,$9::json) RETURNING *`;
-      // Sanitize attachments_json: allow callers to pass array/object or a JSON string.
-      // If it's a string, ensure it's valid JSON; if not valid, wrap it as a single-element array.
-      let attachmentsParam: string | null = null;
-      try {
-        if (payload.attachments_json == null) {
-          attachmentsParam = null;
-        } else if (typeof payload.attachments_json === 'string') {
-          // validate string is valid JSON
-          try {
-            JSON.parse(payload.attachments_json);
-            attachmentsParam = payload.attachments_json;
-          } catch (e) {
-            // not valid JSON, wrap the raw string into an array
-            attachmentsParam = JSON.stringify([payload.attachments_json]);
-          }
-        } else {
-          // object or array — stringify
-          attachmentsParam = JSON.stringify(payload.attachments_json);
-        }
-      } catch (e) {
-        // fallback to null on unexpected errors
-        attachmentsParam = null;
-      }
-      const vals = [file_id, seq, payload.from_user_id ?? null, payload.to_user_id ?? null, payload.action_type, payload.ended_at ?? null, payload.business_minutes_held ?? null, payload.remarks ?? null, attachmentsParam];
+      const q = `INSERT INTO file_events(file_id, seq_no, from_user_id, to_user_id, action_type, started_at, ended_at, business_minutes_held, remarks)
+        VALUES($1,$2,$3,$4,$5,CURRENT_TIMESTAMP,$6,$7,$8) RETURNING *`;
+      const vals = [file_id, seq, payload.from_user_id ?? null, payload.to_user_id ?? null, payload.action_type, payload.ended_at ?? null, payload.business_minutes_held ?? null, payload.remarks ?? null];
       // eslint-disable-next-line no-console
       console.log('[pg] addEvent SQL:', q, 'params:', JSON.stringify(vals), 'url:', sanitizeConnectionString(process.env.DATABASE_URL));
       const r = await client.query(q, vals);
@@ -240,17 +218,23 @@ export async function addEvent(file_id: number|undefined, payload: any) {
         }
       }
 
-      // update files: current_holder_user_id and status mapping
+    // update files: current_holder_user_id and status mapping
   let newStatus = 'WithOfficer';
-  if (payload.action_type === 'Close' || payload.action_type === 'Dispatch') newStatus = 'Closed';
+  if (payload.action_type === 'Close') newStatus = 'Closed';
+  else if (payload.action_type === 'Dispatch') newStatus = 'Dispatched';
   else if (payload.action_type === 'Hold') newStatus = 'OnHold';
   else if (payload.action_type === 'SeekInfo') newStatus = 'WaitingOnOrigin';
   else if (payload.action_type === 'Escalate') newStatus = 'WithCOF';
-      // Preserve holder for Hold if to_user_id not provided
-      const nextHolder = ((payload.action_type === 'Hold') && (payload.to_user_id == null))
-        ? (existingHolder ?? null)
-        : (payload.to_user_id ?? null);
-      await client.query('UPDATE files SET current_holder_user_id = $1, status = $2 WHERE id = $3', [nextHolder, newStatus, file_id]);
+      // For SLAReason, do not change holder or status (annotation-only event)
+      if (payload.action_type === 'SLAReason') {
+        // No-op on files table
+      } else {
+        // Preserve holder for Hold if to_user_id not provided
+        const nextHolder = ((payload.action_type === 'Hold') && (payload.to_user_id == null))
+          ? (existingHolder ?? null)
+          : (payload.to_user_id ?? null);
+        await client.query('UPDATE files SET current_holder_user_id = $1, status = $2 WHERE id = $3', [nextHolder, newStatus, file_id]);
+      }
 
       await client.query('COMMIT');
       return r.rows[0];
@@ -281,6 +265,19 @@ export async function listEvents(file_id?: number) {
       LEFT JOIN users fu ON fu.id = e.from_user_id
       LEFT JOIN users tu ON tu.id = e.to_user_id
       ORDER BY e.id DESC LIMIT 100`;
+  const r = await pool.query(q);
+  return r.rows;
+}
+
+export async function listAllEvents() {
+  const q = `SELECT e.*, f.file_no,
+    json_build_object('id', fu.id, 'username', fu.username, 'name', fu.name, 'role', fu.role) AS from_user,
+    json_build_object('id', tu.id, 'username', tu.username, 'name', tu.name, 'role', tu.role) AS to_user
+    FROM file_events e
+    LEFT JOIN users fu ON fu.id = e.from_user_id
+    LEFT JOIN users tu ON tu.id = e.to_user_id
+    LEFT JOIN files f ON f.id = e.file_id
+    ORDER BY e.id`;
   const r = await pool.query(q);
   return r.rows;
 }
@@ -318,11 +315,93 @@ export async function createUser(payload: { username: string; name: string; pass
   return r.rows[0];
 }
 
+export async function listUsers(query?: { page?: number; limit?: number; q?: string }) {
+  const conditions: string[] = [];
+  const vals: any[] = [];
+  if (query?.q) {
+    vals.push(`%${query.q}%`);
+    conditions.push(`(username ILIKE $${vals.length} OR name ILIKE $${vals.length} OR role ILIKE $${vals.length} OR COALESCE(email,'') ILIKE $${vals.length})`);
+  }
+  const whereSql = conditions.length ? ('WHERE ' + conditions.join(' AND ')) : '';
+  const limit = query?.limit && query.limit > 0 ? Math.min(query.limit, 200) : 50;
+  const page = query?.page && query.page > 0 ? query.page : 1;
+  const offset = (page - 1) * limit;
+  const sql = `SELECT id, username, name, role, office_id, email FROM users ${whereSql} ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`;
+  const r = await pool.query(sql, vals);
+  let total = r.rowCount || 0;
+  try {
+    const cr = await pool.query(`SELECT COUNT(*) AS cnt FROM users ${whereSql}`, vals);
+    total = Number(cr.rows?.[0]?.cnt || 0);
+  } catch {}
+  return { total, page, limit, results: r.rows };
+}
+
+export async function updateUser(id: number, updates: { name?: string; role?: string; office_id?: number | null; email?: string | null }) {
+  const sets: string[] = [];
+  const vals: any[] = [];
+  let idx = 1;
+  if (updates.name !== undefined) { sets.push(`name = $${idx++}`); vals.push(updates.name); }
+  if (updates.role !== undefined) { sets.push(`role = $${idx++}`); vals.push(updates.role); }
+  if (updates.office_id !== undefined) { sets.push(`office_id = $${idx++}`); vals.push(updates.office_id); }
+  if (updates.email !== undefined) { sets.push(`email = $${idx++}`); vals.push(updates.email); }
+  if (!sets.length) {
+    const u = await getUserById(id);
+    return u ? { id: u.id, username: u.username, name: u.name, role: u.role, office_id: u.office_id ?? null, email: u.email ?? null } : null;
+  }
+  vals.push(id);
+  const sql = `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, username, name, role, office_id, email`;
+  const r = await pool.query(sql, vals);
+  if (!r.rowCount) throw new Error('not found');
+  return r.rows[0];
+}
+
+export async function updateUserPassword(userId: number, password_hash: string) {
+  const r = await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, userId]);
+  return (r.rowCount ?? 0) > 0;
+}
+
 export async function computeSlaStatus(file_id: number) {
   // fetch file and its sla policy minutes
-  const fileR = await pool.query('SELECT id, sla_policy_id, created_at, date_initiated, date_received_accounts FROM files WHERE id = $1', [file_id]);
+  const fileR = await pool.query('SELECT id, sla_policy_id, created_at, date_initiated, date_received_accounts, status FROM files WHERE id = $1', [file_id]);
   if (fileR.rowCount === 0) return null;
   const file = fileR.rows[0];
+  // If the file is a Draft, SLA must not accrue. Return a zero-consumption snapshot.
+  if (String(file.status || '').toLowerCase() === 'draft') {
+    // Load policy to report correct sla_minutes even for drafts
+    let slaMinutes = 1440;
+    let warningPct = 70;
+    let escalatePct = 100;
+    let pauseOnHold = true;
+    let policyName: string | null = null;
+    let policyId: number | null = file.sla_policy_id ?? null;
+    if (file.sla_policy_id) {
+      try {
+        const sp = await pool.query('SELECT id, name, sla_minutes, warning_pct, escalate_pct, pause_on_hold FROM sla_policies WHERE id = $1', [file.sla_policy_id]);
+        if (sp.rowCount) {
+          const row = sp.rows[0];
+          policyId = Number(row.id || policyId);
+          policyName = row.name ?? null;
+          slaMinutes = Number(row.sla_minutes || slaMinutes);
+          warningPct = Number(row.warning_pct ?? warningPct);
+          escalatePct = Number(row.escalate_pct ?? escalatePct);
+          pauseOnHold = Boolean(row.pause_on_hold ?? pauseOnHold);
+        }
+      } catch {}
+    }
+    return {
+      sla_minutes: slaMinutes,
+      consumed_minutes: 0,
+      percent_used: 0,
+      status: 'On-track',
+      remaining_minutes: slaMinutes,
+      warning_pct: warningPct,
+      escalate_pct: escalatePct,
+      pause_on_hold: pauseOnHold,
+      policy_id: policyId,
+      policy_name: policyName,
+      calc_mode: (String(process.env.SLA_CALC_MODE || '').toLowerCase() === 'calendar') || (String(process.env.SLA_IGNORE_BUSINESS_TIME || '').toLowerCase() === 'true') ? 'calendar' : 'business',
+    };
+  }
   // Allow switching to calendar-time mode for testing (ignore weekends/business hours)
   const calendarMode = (String(process.env.SLA_CALC_MODE || '').toLowerCase() === 'calendar') || (String(process.env.SLA_IGNORE_BUSINESS_TIME || '').toLowerCase() === 'true');
   // fetch sla policy details
@@ -597,4 +676,79 @@ export async function listAuditLogs(query?: {
     // ignore count errors
   }
   return { total, page, limit, results: r.rows };
+}
+
+// File share tokens — persist a single durable token per file. Old links stop working only on explicit regenerate.
+async function ensureShareTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS file_share_tokens (
+    file_id integer PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+    token_hash text NOT NULL,
+    token text,
+    created_by integer,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    last_used_at timestamptz
+  )`);
+  // Add columns/indexes for older installs
+  await pool.query(`ALTER TABLE file_share_tokens ADD COLUMN IF NOT EXISTS token text`);
+  await pool.query(`ALTER TABLE file_share_tokens ADD COLUMN IF NOT EXISTS created_by integer`);
+  await pool.query(`ALTER TABLE file_share_tokens ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now()`);
+  await pool.query(`ALTER TABLE file_share_tokens ADD COLUMN IF NOT EXISTS last_used_at timestamptz`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS ux_file_share_tokens_hash ON file_share_tokens(token_hash)`);
+}
+
+function makeRandomToken(bytes = 24) {
+  return crypto.randomBytes(bytes).toString('base64url');
+}
+
+export async function setFileShareToken(file_id: number, token: string, created_by?: number | null) {
+  await ensureShareTable();
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  await pool.query(
+    `INSERT INTO file_share_tokens(file_id, token_hash, token, created_by)
+     VALUES($1,$2,$3,$4)
+     ON CONFLICT (file_id) DO UPDATE SET token_hash = EXCLUDED.token_hash, token = EXCLUDED.token, created_by = COALESCE(file_share_tokens.created_by, EXCLUDED.created_by), updated_at = now()`,
+    [file_id, hash, token, created_by ?? null]
+  );
+  return true;
+}
+
+export async function getShareToken(file_id: number): Promise<string | null> {
+  await ensureShareTable();
+  const r = await pool.query('SELECT token FROM file_share_tokens WHERE file_id = $1 LIMIT 1', [file_id]);
+  if (!r.rowCount) return null;
+  return r.rows[0].token || null;
+}
+
+export async function getOrCreateShareToken(file_id: number, created_by?: number | null, force = false): Promise<string> {
+  await ensureShareTable();
+  if (!force) {
+    const existing = await getShareToken(file_id);
+    if (existing) return existing;
+  }
+  const token = makeRandomToken(24);
+  await setFileShareToken(file_id, token, created_by);
+  return token;
+}
+
+export async function isValidFileShareToken(file_id: number, token: string) {
+  await ensureShareTable();
+  const r = await pool.query('SELECT token_hash FROM file_share_tokens WHERE file_id = $1 LIMIT 1', [file_id]);
+  if (!r.rowCount) return false;
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  const ok = r.rows[0].token_hash === hash;
+  if (ok) {
+    try { await pool.query('UPDATE file_share_tokens SET last_used_at = now() WHERE file_id = $1', [file_id]); } catch {}
+  }
+  return ok;
+}
+
+export async function findFileIdByToken(token: string): Promise<number | null> {
+  await ensureShareTable();
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  const r = await pool.query('SELECT file_id FROM file_share_tokens WHERE token_hash = $1 LIMIT 1', [hash]);
+  if (!r.rowCount) return null;
+  const id = Number(r.rows[0].file_id);
+  if (id) { try { await pool.query('UPDATE file_share_tokens SET last_used_at = now() WHERE file_id = $1', [id]); } catch {} }
+  return id || null;
 }

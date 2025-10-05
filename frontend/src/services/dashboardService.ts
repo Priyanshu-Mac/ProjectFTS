@@ -66,7 +66,14 @@ export const dashboardService = {
       .sort((a, b) => (sortDate(a) < sortDate(b) ? -1 : sortDate(a) > sortDate(b) ? 1 : 0))
       .slice(0, 5);
 
+    // Separate breached files from longest delays
+    const breached_files = openFiles
+      .filter((f) => f.sla_status === 'Breach')
+      .slice()
+      .sort((a, b) => (Number(b.sla_percent ?? 0) - Number(a.sla_percent ?? 0)));
+
     const longest_delays = openFiles
+      .filter((f) => f.sla_status !== 'Breach')
       .slice()
       .sort((a, b) => (Number(b.sla_percent ?? 0) - Number(a.sla_percent ?? 0)))
       .slice(0, 10);
@@ -157,9 +164,11 @@ export const dashboardService = {
           files_today: filesToday,
           weekly_ontime_percentage: weeklyOnTimePct,
           average_tat_days: avgTatDays,
+          overdue_count: breached_files.length,
         },
         oldest_files,
         longest_delays,
+        breached_files,
         pendency_by_office,
         aging_buckets,
         imminent_breaches,

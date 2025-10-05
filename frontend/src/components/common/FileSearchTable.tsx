@@ -4,6 +4,10 @@ import { fileService } from '../../services/fileService';
 import { format } from 'date-fns';
 import StatusBadge from './StatusBadge';
 import Timeline from './Timeline';
+import ConfirmModal from './ConfirmModal';
+import { useQueryClient } from '@tanstack/react-query';
+import { masterDataService } from '../../services/masterDataService';
+import { authService } from '../../services/authService';
 
 type FileRow = {
   id: number;
@@ -23,7 +27,6 @@ type FileRow = {
   date_received_accounts?: string | null;
   created_at: string; // ISO
   confidentiality?: boolean;
-  attachments_count: number;
   raw?: any;
 };
 
@@ -50,6 +53,8 @@ interface Props {
 const dateDisplay = (iso?: string | null) => (iso ? format(new Date(iso), 'yyyy-MM-dd') : '—');
 
 export default function FileSearchTable({ data, perPage = 50, serverSide = false, total: propsTotal, page: propsPage, onChange }: Props) {
+  const queryClient = useQueryClient();
+  const currentUser = authService.getCurrentUser();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [officeFilter, setOfficeFilter] = useState('');
@@ -155,15 +160,52 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
 
   // expanded row id for showing QR and details
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [shareTokenMap, setShareTokenMap] = useState<Record<number, string>>({});
-  const [eventsMap, setEventsMap] = useState<Record<number, any[]>>({});
-
-  async function ensureShareToken(id: number) {
-    if (shareTokenMap[id]) return shareTokenMap[id];
+  const [shareTokenMap, setShareTokenMap] = useState<Record<number, string>>(() => {
     try {
-      const body = await fileService.createShareToken(id);
+      const raw = localStorage.getItem('share_tokens');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [eventsMap, setEventsMap] = useState<Record<number, any[]>>({});
+  const [confirmForId, setConfirmForId] = useState<number | null>(null);
+  const [editDraftId, setEditDraftId] = useState<number | null>(null);
+  const [draftForm, setDraftForm] = useState<{ subject?: string; notesheet_title?: string; forward_to_officer_id?: number | ''; remarks?: string }>({});
+  const [modalUsers, setModalUsers] = useState<any[]>([]);
+  const [modalUsersLoading, setModalUsersLoading] = useState(false);
+
+  async function ensureUsersLoaded() {
+    if (modalUsers.length > 0 || modalUsersLoading) return;
+    setModalUsersLoading(true);
+    try {
+      // Fetch users; if current user is a Clerk, request only Officers from the server to reduce payload
+      const roleFilter = (currentUser && currentUser.role === 'clerk') ? 'AccountsOfficer' : null;
+      const res = await masterDataService.getUsers(roleFilter).catch(() => []);
+      const list = Array.isArray(res) ? res : (res?.results ?? []);
+      const restricted = (currentUser && currentUser.role === 'clerk')
+        ? list.filter((u: any) => authService._normalizeRole(u?.role) === 'accounts_officer')
+        : list;
+      setModalUsers(restricted);
+    } finally {
+      setModalUsersLoading(false);
+    }
+  }
+
+  function persistTokens(next: Record<number, string>) {
+    try { localStorage.setItem('share_tokens', JSON.stringify(next)); } catch {}
+  }
+
+  async function ensureShareToken(id: number, force = false) {
+    if (!force && shareTokenMap[id]) return shareTokenMap[id];
+    try {
+      const body = await fileService.createShareToken(id, force);
       const token = body?.token ?? '';
-      if (token) setShareTokenMap((m) => ({ ...m, [id]: token }));
+      if (token) setShareTokenMap((m) => {
+        const next = { ...m, [id]: token };
+        persistTokens(next);
+        return next;
+      });
       return token;
     } catch (e) {
       console.error('create token failed', e);
@@ -223,7 +265,6 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
               <th className="p-2 text-left cursor-pointer" onClick={() => toggleSort('created_by')}>Created By {sortBy === 'created_by' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
               <th className="p-2 text-left cursor-pointer" onClick={() => toggleSort('created_at')}>Created At {sortBy === 'created_at' ? (sortDir === 'asc' ? '▲' : '▼') : ''}</th>
               <th className="p-2 text-left">Confidential</th>
-              <th className="p-2 text-left">Attachments</th>
             </tr>
           </thead>
 
@@ -242,7 +283,7 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
               const derivedPriority = computePriority(r);
               return (
               <React.Fragment key={r.id}>
-                  <tr onClick={async () => {
+                  <tr data-file-row={r.id} onClick={async () => {
                     setExpandedId((s) => (s === r.id ? null : r.id));
                     // lazy load events when expanding
                     try {
@@ -250,6 +291,12 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
                         const ev = await fileService.listEvents(r.id);
                         setEventsMap((m) => ({ ...m, [r.id]: Array.isArray(ev) ? ev : [] }));
                       }
+                      // Also fetch current share token to sync across roles
+                      try {
+                        const tokResp = await fileService.getShareToken(r.id);
+                        const token = tokResp?.token ?? '';
+                        if (token) setShareTokenMap((m) => { const next = { ...m, [r.id]: token }; persistTokens(next); return next; });
+                      } catch {}
                     } catch (e) {
                       // eslint-disable-next-line no-console
                       console.warn('Failed to load events for file', r.id, e);
@@ -265,11 +312,10 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
                     <td className="p-2">{r.created_by_user?.name ?? r.created_by}</td>
                     <td className="p-2">{dateDisplay(r.created_at)}</td>
                     <td className="p-2">{r.confidentiality ? 'Yes' : 'No'}</td>
-                    <td className="p-2">{r.attachments_count}</td>
                   </tr>
                 {expandedId === r.id && (
                   <tr className="bg-gray-50">
-                    <td colSpan={11} className="p-4">
+                    <td colSpan={10} className="p-4">
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Left: Metadata */}
                         <div className="space-y-4">
@@ -326,10 +372,6 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
 
                           <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
-                              <div className="text-gray-500">Attachments</div>
-                              <div className="font-medium">{r.attachments_count}</div>
-                            </div>
-                            <div>
                               <div className="text-gray-500">SLA Policy</div>
                               <div className="font-medium">{(r.raw?.sla_policy_name) || (r.sla_policy_id ?? '—')}</div>
                             </div>
@@ -360,6 +402,19 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
 
                         {/* Right: SLA & Share */}
                         <div className="space-y-4">
+                          {/* Draft Controls */}
+                          {String(r.status).toLowerCase() === 'draft' && (
+                            <div className="p-4 bg-white border rounded">
+                              <div className="flex items-center justify-between">
+                                <div className="text-sm font-medium text-gray-900">Draft</div>
+                                <button
+                                  onClick={async (e) => { e.stopPropagation(); setEditDraftId(r.id); setDraftForm({ subject: r.subject, notesheet_title: r.notesheet_title || '', forward_to_officer_id: r.current_holder_user_id || '' }); await ensureUsersLoaded(); }}
+                                  className="px-3 py-1 bg-indigo-600 text-white rounded text-sm"
+                                >Edit & Submit</button>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-600">SLA won’t start until you submit the draft.</div>
+                            </div>
+                          )}
                           {/* SLA & Status Card */}
                           <div className="p-4 bg-white border rounded">
                             <div className="flex items-center justify-between">
@@ -400,13 +455,17 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-medium text-gray-900">Share</div>
                               <button
-                                onClick={async (e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
-                                  const token = await ensureShareToken(r.id);
-                                  if (!token) return;
+                                  // If a token exists, ask for confirmation to regenerate
+                                  if (shareTokenMap[r.id]) {
+                                    setConfirmForId(r.id);
+                                  } else {
+                                    ensureShareToken(r.id);
+                                  }
                                 }}
                                 className="px-3 py-1 bg-blue-600 text-white rounded"
-                              >Generate Link</button>
+                              >{shareTokenMap[r.id] ? 'Regenerate Link' : 'Generate Link'}</button>
                             </div>
                             <div className="mt-3">
                               {shareTokenMap[r.id] ? (
@@ -434,13 +493,109 @@ export default function FileSearchTable({ data, perPage = 50, serverSide = false
                                       }}
                                       className="px-2 py-1 bg-gray-200 rounded text-xs self-start"
                                     >Copy</button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Open a minimal printable window with just the QR and link
+                                        const url = `${window.location.origin}/files/${r.id}?t=${shareTokenMap[r.id]}`;
+                                        const qr = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}`;
+                                        const w = window.open('', '_blank', 'width=400,height=500');
+                                        if (w) {
+                                          w.document.write(`<!doctype html><html><head><title>QR for ${r.file_no}</title><style>body{font-family:sans-serif;padding:16px} .qr{display:flex;justify-content:center;margin-bottom:12px} .link{word-break:break-all;font-size:12px}</style></head><body>`);
+                                          w.document.write(`<h3>File ${r.file_no}</h3>`);
+                                          w.document.write(`<div class="qr"><img src="${qr}" alt="QR"/></div>`);
+                                          w.document.write(`<div class="link">${url}</div>`);
+                                          w.document.write(`<script>window.onload=()=>window.print();</script>`);
+                                          w.document.write('</body></html>');
+                                          w.document.close();
+                                        }
+                                      }}
+                                      className="px-2 py-1 bg-gray-200 rounded text-xs self-start"
+                                    >Print QR</button>
                                   </div>
                                 </div>
                               ) : (
                                 <div className="text-xs text-gray-600">No link yet</div>
                               )}
+                              {shareTokenMap[r.id] && (
+                                <div className="text-xs text-gray-500 mt-2">Note: This QR/link remains valid until you regenerate it.</div>
+                              )}
                             </div>
                           </div>
+                          {/* Edit Draft Modal */}
+                          {editDraftId === r.id && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEditDraftId(null)}>
+                              <div className="w-full max-w-lg rounded-lg bg-white shadow-lg" onClick={(e) => e.stopPropagation()}>
+                                <div className="px-4 py-3 border-b flex items-center justify-between">
+                                  <h3 className="text-lg font-semibold">Edit Draft</h3>
+                                  <button className="text-sm text-gray-600" onClick={() => setEditDraftId(null)}>Close</button>
+                                </div>
+                                <div className="px-4 py-3 space-y-3">
+                                  <div>
+                                    <div className="text-sm text-gray-700">Subject</div>
+                                    <input className="mt-1 w-full border rounded p-2" value={draftForm.subject ?? ''} onChange={(e) => setDraftForm((s) => ({ ...s, subject: e.target.value }))} />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm text-gray-700">Notesheet Title</div>
+                                    <input className="mt-1 w-full border rounded p-2" value={draftForm.notesheet_title ?? ''} onChange={(e) => setDraftForm((s) => ({ ...s, notesheet_title: e.target.value }))} />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm text-gray-700">Forward To (optional until submit)</div>
+                                    <select
+                                      className="mt-1 w-full border rounded p-2"
+                                      value={draftForm.forward_to_officer_id ?? ''}
+                                      onChange={(e) => setDraftForm((s) => ({ ...s, forward_to_officer_id: e.target.value ? Number(e.target.value) : '' }))}
+                                    >
+                                      <option value="">Select recipient</option>
+                                      {modalUsersLoading && <option value="" disabled>Loading users…</option>}
+                                      {!modalUsersLoading && modalUsers.map((u) => (
+                                        <option key={u.id} value={u.id} disabled={currentUser && Number(currentUser.id) === Number(u.id)}>
+                                          {(u.name ?? u.username ?? `User #${u.id}`)}{u.role ? ` · ${u.role}` : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="text-xs text-gray-500 mt-1">Can’t see a user? Start typing to search in the built-in browser filter.</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-sm text-gray-700">Remarks (optional)</div>
+                                    <textarea className="mt-1 w-full border rounded p-2" rows={3} value={draftForm.remarks ?? ''} onChange={(e) => setDraftForm((s) => ({ ...s, remarks: e.target.value }))} />
+                                  </div>
+                                </div>
+                                <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+                                  <button className="px-4 py-2 text-sm rounded-md border bg-white hover:bg-gray-50" onClick={() => setEditDraftId(null)}>Cancel</button>
+                                  <button
+                                    className="px-4 py-2 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                                    onClick={async () => {
+                                      try {
+                                        const body: any = { ...draftForm };
+                                        const submit = true;
+                                        await fileService.updateFile(r.id, { ...body, submit });
+                                        toast.success('Draft submitted');
+                                        setEditDraftId(null);
+                                        // refresh lists/events
+                                        queryClient.invalidateQueries({ queryKey: ['files'] }).catch(() => {});
+                                      } catch (e: any) {
+                                        toast.error(String(e?.message ?? 'Failed to submit draft'));
+                                      }
+                                    }}
+                                  >Submit</button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <ConfirmModal
+                            open={confirmForId === r.id}
+                            title="Regenerate share link?"
+                            message="The existing QR code and link will stop working after regenerating. Continue?"
+                            confirmText="Regenerate"
+                            cancelText="Cancel"
+                            onConfirm={async () => {
+                              const idToGen = confirmForId!;
+                              setConfirmForId(null);
+                              await ensureShareToken(idToGen, true);
+                            }}
+                            onCancel={() => setConfirmForId(null)}
+                          />
 
                           {/* Full Timeline */}
                           <div className="p-4 bg-white border rounded">

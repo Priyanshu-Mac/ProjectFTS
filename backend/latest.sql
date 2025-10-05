@@ -387,7 +387,7 @@ CREATE TABLE public.files (
     sla_policy_id integer,
     created_by integer,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT files_status_check CHECK (((status)::text = ANY ((ARRAY['Open'::character varying, 'WithOfficer'::character varying, 'WithCOF'::character varying, 'Dispatched'::character varying, 'OnHold'::character varying, 'WaitingOnOrigin'::character varying, 'Closed'::character varying])::text[])))
+    CONSTRAINT files_status_check CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Open'::character varying, 'WithOfficer'::character varying, 'WithCOF'::character varying, 'Dispatched'::character varying, 'OnHold'::character varying, 'WaitingOnOrigin'::character varying, 'Closed'::character varying])::text[])))
 );
 
 

@@ -16,7 +16,6 @@ type FileRecord = {
   sla_policy_id?: number;
   created_by?: number;
   created_at: string;
-  attachments?: any[];
 };
 
 type FileEvent = {
@@ -30,7 +29,7 @@ type FileEvent = {
   ended_at?: string | null;
   business_minutes_held?: number | null;
   remarks?: string | null;
-  attachments_json?: any;
+  // attachments_json removed
 };
 
 const files: FileRecord[] = [];
@@ -74,15 +73,30 @@ export function createFile(payload: Partial<FileRecord>): FileRecord {
     date_initiated: payload.date_initiated,
     date_received_accounts: payload.date_received_accounts || new Date().toISOString().slice(0,10),
     current_holder_user_id: payload.current_holder_user_id,
-    status: payload.status || 'Open',
+  status: payload.status || 'Open',
     confidentiality: payload.confidentiality || false,
     sla_policy_id: payload.sla_policy_id,
     created_by: payload.created_by,
     created_at: new Date().toISOString(),
-    attachments: (payload as any).attachments ?? [],
   };
   files.push(rec);
   return rec;
+}
+
+export function updateFileDraft(id: number, next: Partial<FileRecord> & { submit?: boolean; forward_to_officer_id?: number | null; remarks?: string | null }, actorUserId?: number) {
+  const f = files.find(ff => ff.id === id);
+  if (!f) throw new Error('not found');
+  if (String(f.status).toLowerCase() !== 'draft') return f;
+  const allowed: (keyof FileRecord)[] = ['subject','notesheet_title','owning_office_id','category_id','priority','confidentiality','date_initiated','date_received_accounts','sla_policy_id'];
+  for (const k of allowed) if (k in next) (f as any)[k] = (next as any)[k];
+  if (String(next.submit || '').toLowerCase() === 'true') {
+    const holder = (next as any).forward_to_officer_id ?? f.current_holder_user_id ?? null;
+    f.current_holder_user_id = holder || undefined;
+    f.status = 'WithOfficer';
+    // start movement
+    addEvent(f.id, { from_user_id: actorUserId ?? null, to_user_id: holder ?? null, action_type: 'Forward', remarks: next.remarks ?? null });
+  }
+  return f;
 }
 
 export function listFiles(query?: {
@@ -108,6 +122,7 @@ export function listFiles(query?: {
   if (query?.category) {
     res = res.filter(f => f.category_id === query.category);
   }
+  // attachments removed
   if (query?.status) {
     res = res.filter(f => f.status === query.status);
   }
@@ -163,7 +178,7 @@ export function addEvent(file_id: number | undefined, payload: Partial<FileEvent
     ended_at: payload.ended_at ?? null,
     business_minutes_held: payload.business_minutes_held ?? null,
     remarks: payload.remarks ?? null,
-    attachments_json: payload.attachments_json ?? null,
+    // attachments_json removed from payload
   };
   events.push(ev);
 
@@ -175,12 +190,16 @@ export function addEvent(file_id: number | undefined, payload: Partial<FileEvent
   // update file current holder and status
   const f = files.find(ff => ff.id === file_id);
   if (f) {
-    if (ev.to_user_id) f.current_holder_user_id = ev.to_user_id;
-    // map action_type to status
-  if (ev.action_type === 'Close' || ev.action_type === 'Dispatch') f.status = 'Closed';
-  else if (ev.action_type === 'Hold') f.status = 'OnHold';
-    else if (ev.action_type === 'SeekInfo') f.status = 'WaitingOnOrigin';
-    else f.status = 'WithOfficer';
+    if (ev.action_type !== 'SLAReason') {
+      if (ev.to_user_id) f.current_holder_user_id = ev.to_user_id;
+      // map action_type to status
+      if (ev.action_type === 'Close') f.status = 'Closed';
+      else if (ev.action_type === 'Dispatch') f.status = 'Dispatched';
+      else if (ev.action_type === 'Escalate') f.status = 'WithCOF';
+      else if (ev.action_type === 'Hold') f.status = 'OnHold';
+      else if (ev.action_type === 'SeekInfo') f.status = 'WaitingOnOrigin';
+      else f.status = 'WithOfficer';
+    }
   }
 
   return ev;
@@ -194,6 +213,21 @@ export function listEvents(file_id?: number) {
     const tu = (e.to_user_id ? users.find(u => u.id === e.to_user_id) : null) || null;
     return {
       ...e,
+      from_user: fu ? { id: fu.id, username: fu.username, name: fu.name, role: fu.role } : null,
+      to_user: tu ? { id: tu.id, username: tu.username, name: tu.name, role: tu.role } : null,
+    } as any;
+  });
+}
+
+export function listAllEvents() {
+  // Return events with file_no and user objects similar to pg adapter
+  return events.map((e) => {
+    const fu = (e.from_user_id ? users.find(u => u.id === e.from_user_id) : null) || null;
+    const tu = (e.to_user_id ? users.find(u => u.id === e.to_user_id) : null) || null;
+    const f = files.find(ff => ff.id === e.file_id) || null;
+    return {
+      ...e,
+      file_no: f?.file_no || null,
       from_user: fu ? { id: fu.id, username: fu.username, name: fu.name, role: fu.role } : null,
       to_user: tu ? { id: tu.id, username: tu.username, name: tu.name, role: tu.role } : null,
     } as any;
@@ -255,11 +289,38 @@ export function createUser(payload: { username: string; name: string; password_h
   return u;
 }
 
+export function getUserById(id: number) {
+  return users.find(u => u.id === id) || null;
+}
+
 export function updateUserPassword(userId: number, password_hash: string) {
   const u = users.find(x => x.id === userId);
   if (!u) return false;
   u.password_hash = password_hash;
   return true;
+}
+
+export function listUsers(query?: { page?: number; limit?: number; q?: string }) {
+  let res = users.slice();
+  if (query?.q) {
+    const ql = query.q.toLowerCase();
+    res = res.filter(u => u.username.toLowerCase().includes(ql) || u.name.toLowerCase().includes(ql) || String(u.role || '').toLowerCase().includes(ql));
+  }
+  const limit = query?.limit && query.limit > 0 ? Math.min(query.limit, 200) : 50;
+  const page = query?.page && query.page > 0 ? query.page : 1;
+  const start = (page - 1) * limit;
+  const paged = res.slice(start, start + limit);
+  return { total: res.length, page, limit, results: paged.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, office_id: u.office_id ?? null, email: u.email ?? null })) };
+}
+
+export function updateUser(id: number, updates: { name?: string; role?: string; office_id?: number | null; email?: string | null }) {
+  const u = users.find(x => x.id === id);
+  if (!u) throw new Error('not found');
+  if (updates.name !== undefined) u.name = updates.name as any;
+  if (updates.role !== undefined) u.role = updates.role as any;
+  if (updates.office_id !== undefined) u.office_id = updates.office_id as any;
+  if (updates.email !== undefined) u.email = updates.email as any;
+  return { id: u.id, username: u.username, name: u.name, role: u.role, office_id: u.office_id ?? null, email: u.email ?? null } as any;
 }
 
 // Movement-oriented audit logs derived from events + synthetic Created entry

@@ -295,3 +295,41 @@ Government of India - Internal Use Only
 **Built for**: Government Accounting Departments  
 **Technology Stack**: Node.js, Express.js, MySQL, React (frontend)  
 **Compliance**: Government IT standards and audit requirements
+
+---
+
+## 🐳 Docker (Local + Prod-like)
+
+This repository includes Dockerfiles and a docker-compose.yml to run the stack locally and prepare for production deployments.
+
+Services in docker-compose:
+- db (Postgres 15)
+- backend (Express + Node)
+- frontend (Vite static build served by Nginx)
+
+Quick start:
+
+```bash
+# From the repo root
+docker compose up --build -d
+
+# View logs
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+Endpoints:
+- API: http://localhost:3000
+- Frontend: http://localhost:5173
+- Postgres: localhost:5432 (user: fts, password: fts, db: fts)
+
+To stop:
+
+```bash
+docker compose down
+```
+
+Notes:
+- Backend gets DATABASE_URL=postgres://fts:fts@db:5432/fts inside Compose network.
+- Frontend is built and served by Nginx; VITE_API_BASE_URL defaults to http://localhost:3000.
+- This setup targets prod-like builds. For hot-reload development use npm scripts outside Docker.

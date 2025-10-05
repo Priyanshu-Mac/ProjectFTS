@@ -88,7 +88,11 @@ export default function AuditLogsPage() {
                   <>
                     <tr key={r.id} className="border-t align-top">
                       <td className="p-2 whitespace-nowrap">{new Date(r.action_at).toLocaleString()}</td>
-                      <td className="p-2">{r.file ? (<a className="text-blue-600 underline" href={`/files/${r.file.id}`} target="_blank" rel="noopener noreferrer">{r.file.file_no || r.file.id}</a>) : (isAuth ? <span className="text-gray-500">—</span> : '—')}</td>
+                      <td className="p-2">{r.file ? (
+                        <a className="text-blue-600 underline" href="#" onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', '/file-search'); window.dispatchEvent(new PopStateEvent('popstate')); setTimeout(() => { try { const ev = new CustomEvent('open-file-search', { detail: { id: r.file.id } }); window.dispatchEvent(ev); } catch {} }, 50); }}>
+                          {r.file.file_no || r.file.id}
+                        </a>
+                      ) : (isAuth ? <span className="text-gray-500">—</span> : '—')}</td>
                       <td className="p-2 text-xs text-gray-800">
                         {r.action_type === 'Created' ? (
                           <div>Created by <Name u={to} fallback="Unknown" /></div>
@@ -171,7 +175,11 @@ export default function AuditLogsPage() {
                             <div className="p-3 bg-white border rounded">
                               <div className="text-xs font-semibold text-gray-700">File</div>
                               <div className="mt-1 text-xs text-gray-800">
-                                {r.file ? (<a className="text-blue-600 underline" href={`/files/${r.file.id}`} target="_blank" rel="noopener noreferrer">{r.file.file_no || r.file.id}</a>) : '—'}
+                                {r.file ? (
+                                  <a className="text-blue-600 underline" href="#" onClick={(e) => { e.preventDefault(); window.history.pushState({}, '', '/file-search'); window.dispatchEvent(new PopStateEvent('popstate')); setTimeout(() => { try { const ev = new CustomEvent('open-file-search', { detail: { id: r.file.id } }); window.dispatchEvent(ev); } catch {} }, 50); }}>
+                                    {r.file.file_no || r.file.id}
+                                  </a>
+                                ) : '—'}
                               </div>
                               {r.subject && <div className="mt-1 text-[11px] text-gray-500">{r.subject}</div>}
                             </div>

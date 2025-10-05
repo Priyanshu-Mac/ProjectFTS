@@ -14,6 +14,10 @@ import FileSearchPage from './pages/FileSearchPage';
 import FileDetailPage from './pages/FileDetailPage';
 import MoveFilePage from './pages/MoveFilePage';
 import AuditLogsPage from './pages/AuditLogsPage';
+import COFReviewPage from './pages/COFReviewPage';
+import OfficerKanbanPage from './pages/OfficerKanbanPage';
+import ReportsPage from './pages/ReportsPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 // Services
 import { authService } from './services/authService';
@@ -44,6 +48,18 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <DashboardPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Dashboard - Admin only */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout>
+                    <AdminDashboardPage />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -95,10 +111,19 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['cof', 'admin']}>
                   <Layout>
-                    <div className="text-center py-12">
-                      <h2 className="text-2xl font-bold text-gray-900">COF Review</h2>
-                      <p className="text-gray-600 mt-2">Coming soon...</p>
-                    </div>
+                    <COFReviewPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Officer Kanban - Officers, COF and Admin */}
+            <Route
+              path="/kanban"
+              element={
+                <ProtectedRoute allowedRoles={['accounts_officer','cof','admin']}>
+                  <Layout>
+                    <OfficerKanbanPage />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -114,6 +139,18 @@ function App() {
                       <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
                       <p className="text-gray-600 mt-2">Coming soon...</p>
                     </div>
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Reports - COF and Admin only */}
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute allowedRoles={['cof','admin']}>
+                  <Layout>
+                    <ReportsPage />
                   </Layout>
                 </ProtectedRoute>
               }

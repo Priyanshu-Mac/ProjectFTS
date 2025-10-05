@@ -208,7 +208,6 @@ export default function MovementForm({ fileId, currentUser, onMoved }: MovementF
         to_user_id: requiresToUser ? Number(toUserId) : undefined,
         action_type: actionType,
         remarks: remarks.trim() || undefined,
-        attachments: [],
       });
       toast.success('Movement recorded');
       // Proactively refresh dashboards and file lists so UI reflects changes immediately

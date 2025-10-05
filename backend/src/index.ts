@@ -16,6 +16,9 @@ import dashboardRouter from './routes/dashboard';
 import internalRouter from './routes/internal';
 import authRouter from './routes/auth';
 import masterDataRouter from './routes/masterData';
+import cofRouter from './routes/cof';
+import reportsRouter from './routes/reports';
+import usersRouter from './routes/users';
 import { optionalAuth } from './middleware/auth';
 import { logAudit } from './middleware/audit';
 
@@ -44,12 +47,16 @@ app.post('/echo', validateBody(EchoSchema), async (req: Request, res: Response) 
 });
 
 // API routes
-app.use('/files', filesRouter);
+// Register more specific child routes before the generic /files router to avoid shadowing issues
 app.use('/files/:id/events', eventsRouter);
+app.use('/files', filesRouter);
 app.use('/auth', authRouter);
 app.use('/dashboards', dashboardRouter);
 app.use('/internal', internalRouter);
 app.use('/master-data', masterDataRouter);
+app.use('/cof', cofRouter);
+app.use('/reports', reportsRouter);
+app.use('/users', usersRouter);
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 const server = app.listen(PORT, () => {

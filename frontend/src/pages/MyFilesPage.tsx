@@ -46,7 +46,6 @@ export default function MyFilesPage() {
       created_by_user: r.created_by_user,
       current_holder_user_id: r.current_holder_user_id,
       created_at: r.created_at ?? r.date_initiated ?? new Date().toISOString(),
-      attachments_count: Array.isArray(r.attachments) ? r.attachments.length : (r.attachments_count ?? 0),
       sla_status: r.sla_status,
       raw: r,
     }));

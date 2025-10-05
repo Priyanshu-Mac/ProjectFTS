@@ -1,12 +1,14 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import FileSearchTable from '../components/common/FileSearchTable';
 import { authService } from '../services/authService';
 import { useQuery } from '@tanstack/react-query';
 import { fileService } from '../services/fileService';
+import { useLocation } from 'react-router-dom';
 // toast intentionally not used here; errors are shown inline
 
 export default function FileSearchPage() {
   const currentUser = authService.getCurrentUser();
+  const location = useLocation() as any;
   const [params, setParams] = useState<{ q?: string; status?: string; owning_office?: string; sortBy?: string; sortDir?: string; page?: number }>({ page: 1 });
   const [onlyMine, setOnlyMine] = useState(true);
   const [onlyWithCOF, setOnlyWithCOF] = useState(false);
@@ -64,7 +66,6 @@ export default function FileSearchPage() {
       date_received_accounts: r.date_received_accounts ?? null,
       created_at: r.created_at ?? r.date_initiated ?? new Date().toISOString(),
       confidentiality: !!r.confidentiality,
-      attachments_count: Array.isArray(r.attachments) ? r.attachments.length : (r.attachments_count ?? 0),
       raw: r,
     }));
   }, [data]);
@@ -80,6 +81,23 @@ export default function FileSearchPage() {
       page: Number(opts.page ?? p.page ?? 1),
     }));
   }, []);
+
+  // When redirected from intake with { state: { openId } }, auto focus that file
+  useEffect(() => {
+    const openId = location?.state?.openId;
+    if (!openId) return;
+    // attempt to locate and expand/scroll to the row after data loads
+    const t = setTimeout(() => {
+      try {
+        const row = document.querySelector(`[data-file-row="${openId}"]`);
+        if (row) {
+          (row as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (row as HTMLElement).dispatchEvent(new Event('click', { bubbles: true }));
+        }
+      } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [location?.state?.openId, data, isLoading]);
 
   return (
     <div>

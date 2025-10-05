@@ -31,11 +31,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
+    const status = error?.response?.status;
+    const url: string = error?.config?.url || '';
+    const hadAuthHeader = !!(error?.config?.headers?.Authorization);
+    const isTokenOnlyEndpoint = url.startsWith('/files/shared/') || url.includes('/files/shared/');
+    // Only log out for true session/auth failures: 401 responses on requests that used our auth header
+    // and are NOT token-only endpoints. Token-only endpoints (QR) should not log the user out.
+    if (status === 401 && hadAuthHeader && !isTokenOnlyEndpoint) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_data');
       window.location.href = '/login';
+      return; // prevent further handling
     }
     return Promise.reject(error);
   }

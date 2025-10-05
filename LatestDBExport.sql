@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict V7UYtSNtH1pEeQHvyc44cfESsRBhxB2hFCMat5cWh4fwDTHlci7PlAIgsfCPOR5
+\restrict LimprA86BL7lscknSoKC9MqscQasWkCk1l105d2pJquvVEFB62NqtHkgplCFNO5
 
 -- Dumped from database version 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.10 (Ubuntu 16.10-0ubuntu0.24.04.1)
@@ -501,7 +501,7 @@ CREATE TABLE public.files (
     sla_remaining_minutes integer DEFAULT 0 NOT NULL,
     sla_last_warning_at timestamp with time zone,
     sla_last_escalated_at timestamp with time zone,
-    CONSTRAINT files_status_check CHECK (((status)::text = ANY ((ARRAY['Open'::character varying, 'WithOfficer'::character varying, 'WithCOF'::character varying, 'Dispatched'::character varying, 'OnHold'::character varying, 'WaitingOnOrigin'::character varying, 'Closed'::character varying])::text[])))
+    CONSTRAINT files_status_check CHECK (((status)::text = ANY ((ARRAY['Draft'::character varying, 'Open'::character varying, 'WithOfficer'::character varying, 'WithCOF'::character varying, 'Dispatched'::character varying, 'OnHold'::character varying, 'WaitingOnOrigin'::character varying, 'Closed'::character varying])::text[])))
 );
 
 
@@ -983,6 +983,106 @@ COPY public.attachments (id, file_id, file_event_id, file_path, file_type, uploa
 --
 
 COPY public.audit_logs (id, file_id, user_id, action_type, action_details, action_at) FROM stdin;
+1	\N	1	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true", "query": {"page": 1, "limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:53.349478+00
+2	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:54.13822+00
+3	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:54.414453+00
+4	\N	1	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true", "query": {"page": 1, "limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:55.20551+00
+5	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:55.557164+00
+6	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:43:55.830698+00
+7	\N	2	Read	{"ip": "::1", "path": "/auth/login", "route": "POST /auth/login", "method": "POST", "result": "ok", "username": "clerk"}	2025-10-04 15:44:02.559599+00
+8	\N	2	Read	{"ip": "::1", "path": "/files?creator=2&type=file_intake&page=1&limit=50", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:44:02.578371+00
+9	5	2	Write	{"ip": "::1", "path": "/files", "route": "POST /files", "method": "POST", "payload": {"remarks": "new", "subject": "new file audit log check", "priority": "Urgent", "attachments": [{"url": "/sd.pdf"}], "category_id": 1, "save_as_draft": false, "sla_policy_id": 2, "date_initiated": "2025-10-04", "confidentiality": true, "notesheet_title": "audit log check", "owning_office_id": 1, "forward_to_officer_id": 3, "date_received_accounts": "2025-10-04"}}	2025-10-04 15:44:26.560964+00
+10	5	2	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:44:26.575157+00
+11	5	2	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:44:26.581144+00
+12	5	2	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:44:26.585358+00
+13	5	2	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:44:26.588622+00
+14	\N	2	Read	{"ip": "::1", "path": "/files?creator=2&type=file_intake&page=1&limit=50", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:44:28.901045+00
+15	\N	2	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true&creator=2", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:44:30.938614+00
+16	5	2	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:44:31.886195+00
+17	\N	2	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true&creator=2", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:46:13.856849+00
+18	5	2	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:46:14.704929+00
+19	\N	2	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:46:17.47013+00
+20	\N	2	Read	{"ip": "::1", "path": "/files?creator=2&type=file_intake&page=1&limit=50", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:46:17.491384+00
+21	\N	2	Read	{"ip": "::1", "path": "/files?creator=2&type=file_intake&page=1&limit=50", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:46:17.834348+00
+22	\N	2	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true&creator=2", "query": {"page": 1, "limit": 50, "creator": 2}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:35.744038+00
+23	\N	1	Read	{"ip": "::1", "path": "/auth/login", "route": "POST /auth/login", "method": "POST", "result": "ok", "username": "cof"}	2025-10-04 15:48:41.840712+00
+24	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:41.863597+00
+25	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:43.136692+00
+26	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:43.892726+00
+27	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:44.372738+00
+28	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:48:45.832865+00
+29	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 15:49:44.082928+00
+30	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:49:59.118684+00
+31	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:49:59.124958+00
+32	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:49:59.129097+00
+33	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:49:59.132558+00
+34	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:50:02.027779+00
+35	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:50:02.033666+00
+36	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:50:02.033717+00
+37	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:50:02.038697+00
+38	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:50:05.960118+00
+40	5	1	Read	{"ip": "::1", "path": "/files/5", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 15:50:05.965946+00
+41	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:50:05.978951+00
+39	5	1	Read	{"ip": "::1", "path": "/files/5/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 15:50:05.964869+00
+42	\N	1	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true", "query": {"page": 1, "limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:16.603467+00
+43	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:17.549436+00
+44	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:17.826434+00
+45	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:18.314686+00
+46	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:18.848467+00
+47	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:19.124295+00
+48	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:19.774299+00
+49	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:20.542745+00
+50	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:20.825499+00
+51	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:21.250702+00
+52	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:16:51.71446+00
+53	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:17:22.183456+00
+54	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:17:52.649382+00
+55	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:18:23.109467+00
+56	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:18:53.575547+00
+57	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:19:21.112104+00
+58	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:19:51.568753+00
+59	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:20:22.036048+00
+60	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:20:52.50154+00
+61	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:21:22.976348+00
+62	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:21:53.440177+00
+63	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:22:23.909934+00
+64	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:22:51.440644+00
+65	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:23:21.903957+00
+66	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:26:52.397942+00
+67	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:26:52.407494+00
+68	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:27:02.235673+00
+69	\N	1	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true", "query": {"page": 1, "limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:27:03.963336+00
+70	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:27:04.497794+00
+71	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:27:04.77281+00
+72	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:27:21.926868+00
+73	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:28:03.382824+00
+74	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:29:42.186551+00
+75	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:29:42.741262+00
+76	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:06.239553+00
+77	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:16.068418+00
+78	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:16.075028+00
+79	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:33.805911+00
+80	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:34.075279+00
+81	\N	1	Read	{"ip": "::1", "path": "/files?page=1&limit=50&includeSla=true", "query": {"page": 1, "limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:34.301008+00
+82	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:35.013799+00
+83	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:30:35.29672+00
+84	\N	1	Read	{"ip": "::1", "path": "/files?holder=1&includeSla=true&limit=50", "query": {"limit": 50, "holder": 1}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:35:56.87324+00
+85	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:35:57.781744+00
+86	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:36:17.226017+00
+87	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:36:18.121327+00
+88	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:36:53.386385+00
+89	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:36:53.63285+00
+90	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:39:52.282015+00
+91	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:40:19.817136+00
+92	2	1	Read	{"ip": "::1", "path": "/files/2", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 16:40:22.835879+00
+93	2	1	Read	{"ip": "::1", "path": "/files/2/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 16:40:22.841616+00
+94	2	1	Read	{"ip": "::1", "path": "/files/2", "route": "GET /files/:id", "method": "GET", "includeSla": true}	2025-10-04 16:40:22.842572+00
+95	2	1	Read	{"ip": "::1", "path": "/files/2/events", "count": 1, "route": "GET /files/:id/events", "method": "GET"}	2025-10-04 16:40:22.851774+00
+96	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:40:24.519621+00
+97	\N	1	Read	{"ip": "::1", "path": "/auth/login", "route": "POST /auth/login", "method": "POST", "result": "ok", "username": "cof"}	2025-10-04 16:55:02.307478+00
+98	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=500", "query": {"limit": 500}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:55:02.420549+00
+99	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:55:17.082584+00
+100	\N	1	Read	{"ip": "::1", "path": "/files?includeSla=true&limit=50", "query": {"limit": 50}, "route": "GET /files", "method": "GET", "includeSla": true}	2025-10-04 16:55:17.402494+00
 \.
 
 
@@ -1016,9 +1116,16 @@ COPY public.daily_counters (counter_date, counter) FROM stdin;
 --
 
 COPY public.file_events (id, file_id, seq_no, from_user_id, to_user_id, action_type, started_at, ended_at, business_minutes_held, remarks, attachments_json) FROM stdin;
-1	1	1	2	3	Forward	2025-10-04 01:46:57.624191+00	\N	\N	yes	[{"url": "/uploads/sm.pdf"}]
 2	2	1	2	3	Forward	2025-10-04 01:53:46.400097+00	\N	\N	SOMETHING	[{"url": "/sm.pdf"}]
-3	3	1	2	3	Forward	2025-10-04 02:53:40.878672+00	\N	\N	YES	[{"url": "/uploads/sm.pdf"}]
+3	3	1	2	3	Forward	2025-10-04 02:53:40.878672+00	2025-10-04 13:05:44.343453+00	612	YES	[{"url": "/uploads/sm.pdf"}]
+1	1	1	2	3	Forward	2025-10-04 01:46:57.624191+00	2025-10-04 13:30:41.210283+00	704	yes	[{"url": "/uploads/sm.pdf"}]
+4	3	2	3	\N	Hold	2025-10-04 13:05:44.343453+00	2025-10-04 14:27:47.627307+00	82	som reason	[]
+8	3	3	3	1	Escalate	2025-10-04 14:27:47.627307+00	2025-10-04 14:33:25.091577+00	6	sm	[]
+9	3	4	1	3	Forward	2025-10-04 14:33:25.091577+00	\N	\N	bad file	[]
+5	1	2	3	3	Hold	2025-10-04 13:30:41.210283+00	2025-10-04 14:51:45.269752+00	81	errors	[]
+10	1	3	3	1	Escalate	2025-10-04 14:51:45.269752+00	2025-10-04 14:52:44.370027+00	1	somethign	[]
+11	1	4	1	3	Return	2025-10-04 14:52:44.370027+00	\N	\N	yeah it's bad	[]
+12	5	1	2	3	Forward	2025-10-04 15:44:26.547413+00	\N	\N	new	[{"url": "/sd.pdf"}]
 \.
 
 
@@ -1027,9 +1134,11 @@ COPY public.file_events (id, file_id, seq_no, from_user_id, to_user_id, action_t
 --
 
 COPY public.files (id, file_no, subject, notesheet_title, owning_office_id, category_id, date_initiated, date_received_accounts, current_holder_user_id, status, confidentiality, sla_policy_id, created_by, created_at, sla_consumed_minutes, sla_percent, sla_status, sla_remaining_minutes, sla_last_warning_at, sla_last_escalated_at) FROM stdin;
-1	ACC-20251004-01	FILE 01	NOTESHEET 01	1	1	2025-10-04	2025-10-05	3	WithOfficer	t	2	2	2025-10-04 01:46:57.615997+00	0	0	On-track	480	\N	\N
-2	ACC-20251004-02	FILE 02	FILE 02	1	1	2025-10-04	2025-10-04	3	WithOfficer	t	1	2	2025-10-04 01:53:46.398072+00	61	4	On-track	1379	\N	\N
-3	ACC-20251004-03	yeah	something	1	1	2025-10-04	2025-10-04	3	WithOfficer	f	2	2	2025-10-04 02:53:40.875365+00	13	3	On-track	467	\N	\N
+5	ACC-20251004-05	new file audit log check	audit log check	1	1	2025-10-04	2025-10-04	3	WithOfficer	t	2	2	2025-10-04 15:44:26.54448+00	6	1	On-track	474	\N	\N
+2	ACC-20251004-02	FILE 02	FILE 02	1	1	2025-10-04	2025-10-04	3	WithOfficer	t	1	2	2025-10-04 01:53:46.398072+00	887	62	On-track	553	\N	\N
+3	ACC-20251004-03	yeah	something	1	1	2025-10-04	2025-10-04	3	WithOfficer	f	2	2	2025-10-04 02:53:40.875365+00	618	100	Breach	0	\N	\N
+1	ACC-20251004-01	FILE 01	NOTESHEET 01	1	1	2025-10-04	2025-10-05	3	WithOfficer	t	2	2	2025-10-04 01:46:57.615997+00	705	100	Breach	0	\N	\N
+4	ACC-20251004-04	NEW DRAFT TRY	draft file 	1	1	2025-10-04	2025-10-04	\N	Open	t	2	2	2025-10-04 15:11:22.795242+00	0	0	On-track	480	\N	\N
 \.
 
 
@@ -1123,7 +1232,7 @@ SELECT pg_catalog.setval('public.attachments_id_seq', 1, false);
 -- Name: audit_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.audit_logs_id_seq', 1, false);
+SELECT pg_catalog.setval('public.audit_logs_id_seq', 131, true);
 
 
 --
@@ -1137,14 +1246,14 @@ SELECT pg_catalog.setval('public.categories_id_seq', 5, true);
 -- Name: file_events_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.file_events_id_seq', 3, true);
+SELECT pg_catalog.setval('public.file_events_id_seq', 12, true);
 
 
 --
 -- Name: files_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.files_id_seq', 3, true);
+SELECT pg_catalog.setval('public.files_id_seq', 5, true);
 
 
 --
@@ -1777,5 +1886,5 @@ GRANT ALL ON TABLE public.working_hours TO admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict V7UYtSNtH1pEeQHvyc44cfESsRBhxB2hFCMat5cWh4fwDTHlci7PlAIgsfCPOR5
+\unrestrict LimprA86BL7lscknSoKC9MqscQasWkCk1l105d2pJquvVEFB62NqtHkgplCFNO5
 
