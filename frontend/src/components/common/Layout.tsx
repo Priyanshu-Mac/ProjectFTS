@@ -110,7 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <h1 className="text-xl font-bold">Government File Management System</h1>
+                <h1 className="text-xl font-bold">DTU File Tracking System</h1>
                 <p className="text-sm text-blue-200">Accounts Department</p>
               </div>
             </div>

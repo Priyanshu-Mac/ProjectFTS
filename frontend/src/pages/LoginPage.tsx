@@ -80,7 +80,7 @@ const LoginPage: React.FC = () => {
             <Building className="h-8 w-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Government File Management
+            DTU File Tracking System
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Accounts Department - Sign in to your account
@@ -177,7 +177,7 @@ const LoginPage: React.FC = () => {
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-500">
-          <p>Government of India - Accounts Department</p>
+          <p>DTU - Accounts Department</p>
           <p className="mt-1">For authorized personnel only</p>
         </div>
       </div>
