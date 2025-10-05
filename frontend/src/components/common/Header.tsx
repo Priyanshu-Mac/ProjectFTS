@@ -1,5 +1,4 @@
 import React from 'react';
-// Import a relevant icon for the title
 import { FolderKanban, LogOut, User } from 'lucide-react'; 
 
 interface HeaderProps {
@@ -10,19 +9,16 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ currentUser, onLogout }) => {
   return (
     <header className="bg-white border-b border-gray-200">
-      {/* Change justify-end to justify-between */}
-      <div className="flex justify-between items-center h-16 px-6">
+      <div className="relative flex items-center h-16 px-6">
         
-        {/* ADD THIS: Application Title on the left */}
-        <div className="flex items-center space-x-3">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-3">
           <FolderKanban className="h-7 w-7 text-indigo-600" />
           <h1 className="text-xl font-bold text-slate-800">
             DTU File Tracking System
           </h1>
         </div>
-        
-        {/* User Profile Dropdown (remains on the right) */}
-        <div className="relative group">
+
+        <div className="relative group ml-auto">
           <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
               {currentUser?.name?.charAt(0).toUpperCase()}
