@@ -52,16 +52,57 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// router.post('/login', async (req, res) => {
+//   const parsed = LoginSchema.safeParse(req.body);
+//   if (!parsed.success) return res.status(400).json({ error: parsed.error.format() });
+//   const { username, password } = parsed.data;
+//   const user = await findUserByUsername(username);
+//   if (!user) return res.status(401).json({ error: 'invalid credentials' });
+//   const ok = await bcrypt.compare(password, user.password_hash || '');
+//   if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+//   const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
+//   // Keep original role casing as stored (e.g., 'AccountsOfficer'); frontend normalizes to 'accounts_officer'
+//   try { await logAudit({ req, userId: user.id, action: 'Read', details: { route: 'POST /auth/login', username: user.username, result: 'ok' } }); } catch {}
+//   res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk', office_id: (user as any).office_id ?? null } });  
+// });
+
 router.post('/login', async (req, res) => {
+  // ---- START DEBUGGING ----
+  console.log('\n--- NEW LOGIN ATTEMPT ---');
+  console.log('1. Received request body:', JSON.stringify(req.body, null, 2));
+  // ---- END DEBUGGING ----
+
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.format() });
+
   const { username, password } = parsed.data;
   const user = await findUserByUsername(username);
-  if (!user) return res.status(401).json({ error: 'invalid credentials' });
+
+  // ---- START DEBUGGING ----
+  if (!user) {
+    console.log(`2. User NOT FOUND in database for username: "${username}"`);
+    return res.status(401).json({ error: 'invalid credentials' });
+  }
+  console.log(`2. Found user in database:`, { id: user.id, username: user.username, password_hash: user.password_hash });
+  // ---- END DEBUGGING ----
+
   const ok = await bcrypt.compare(password, user.password_hash || '');
-  if (!ok) return res.status(401).json({ error: 'invalid credentials' });
+
+  // ---- START DEBUGGING ----
+  console.log(`3. Password comparison result for "${username}":`, ok, '<-- THIS MUST BE TRUE');
+  // ---- END DEBUGGING ----
+
+  if (!ok) {
+    console.log('Password comparison failed. Sending 401 error.');
+    return res.status(401).json({ error: 'invalid credentials' });
+  }
+
   const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
-  // Keep original role casing as stored (e.g., 'AccountsOfficer'); frontend normalizes to 'accounts_officer'
+
+  // ---- START DEBUGGING ----
+  console.log('4. Login successful! Sending token and user object.');
+  // ---- END DEBUGGING ----
+
   try { await logAudit({ req, userId: user.id, action: 'Read', details: { route: 'POST /auth/login', username: user.username, result: 'ok' } }); } catch {}
   res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: (user as any).role || 'Clerk', office_id: (user as any).office_id ?? null } });  
 });
