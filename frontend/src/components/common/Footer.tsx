@@ -104,23 +104,23 @@ const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative bg-slate-900 text-white overflow-hidden border-t border-slate-800">
-      {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 opacity-50"></div>
+  <footer className="relative bg-slate-100 text-slate-800 overflow-hidden border-t border-slate-200">
+      {/* Subtle gradient to be a touch darker than main content */}
+      <div className="absolute inset-0 bg-gradient-to-r from-white via-slate-100 to-white opacity-70"></div>
       
-      {/* Accent glow */}
-      <div className="absolute top-0 right-1/3 w-96 h-32 bg-indigo-600/5 rounded-full blur-3xl"></div>
+      {/* Gentle accent glow */}
+      <div className="absolute top-0 right-1/3 w-80 h-28 bg-indigo-400/10 rounded-full blur-3xl"></div>
       
-      <div className="relative max-w-[1400px] mx-auto px-8 py-10 w-full">
+      <div className="relative max-w-[1400px] mx-auto px-6 py-5 w-full">
         {/* Main Content - Horizontal Layout */}
-        <div className="flex flex-wrap items-start justify-between gap-12 mb-8">
+        <div className="flex flex-wrap items-start justify-between gap-6 mb-4">
           
           {/* Brand Section - Now takes more space */}
-          <div className="flex-1 min-w-[300px] max-w-lg space-y-4">
-            <h2 className="text-3xl font-bold tracking-tight text-white">
-              DTU <span className="text-indigo-400">Accounts Department</span>
+          <div className="flex-1 min-w-[280px] max-w-lg space-y-2.5">
+            <h2 className="text-xl font-bold tracking-tight text-slate-900">
+              DTU <span className="text-indigo-600">Accounts Department</span>
             </h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-slate-600 text-sm leading-snug">
               Intelligent file tracking system powering seamless document management for Delhi Technological University's finance operations.
             </p>
             
@@ -129,73 +129,73 @@ const Footer: React.FC = () => {
               href="http://dtu.ac.in/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 transition-colors group"
+              className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 transition-colors group"
             >
               <span>Visit DTU Main Website</span>
               <ExternalLink className="h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </a>
             
             {/* Social Links */}
-            <div className="flex gap-3 pt-2">
-              <a href="https://x.com/dtu_delhi" target="_blank" rel="noopener noreferrer" className="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-lg transition-all duration-300 hover:scale-110">
-                <Twitter className="h-4 w-4 text-slate-400 hover:text-indigo-400 transition-colors" />
+            <div className="flex gap-2.5 pt-1.5">
+              <a href="https://x.com/dtu_delhi" target="_blank" rel="noopener noreferrer" className="bg-white border border-slate-200 hover:bg-slate-50 p-2 rounded-lg transition-all duration-300 hover:scale-105">
+                <Twitter className="h-4 w-4 text-slate-500 hover:text-indigo-600 transition-colors" />
               </a>
-              <a href="https://www.linkedin.com/in/delhi-technological-university-delhi-397129209/" target="_blank" rel="noopener noreferrer" className="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-lg transition-all duration-300 hover:scale-110">
-                <Linkedin className="h-4 w-4 text-slate-400 hover:text-indigo-400 transition-colors" />
+              <a href="https://www.linkedin.com/in/delhi-technological-university-delhi-397129209/" target="_blank" rel="noopener noreferrer" className="bg-white border border-slate-200 hover:bg-slate-50 p-2 rounded-lg transition-all duration-300 hover:scale-105">
+                <Linkedin className="h-4 w-4 text-slate-500 hover:text-indigo-600 transition-colors" />
               </a>
-              <a href="https://www.instagram.com/dtu.delhi/" target="_blank" rel="noopener noreferrer" className="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-lg transition-all duration-300 hover:scale-110">
-                <Instagram className="h-4 w-4 text-slate-400 hover:text-indigo-400 transition-colors" />
+              <a href="https://www.instagram.com/dtu.delhi/" target="_blank" rel="noopener noreferrer" className="bg-white border border-slate-200 hover:bg-slate-50 p-2 rounded-lg transition-all duration-300 hover:scale-105">
+                <Instagram className="h-4 w-4 text-slate-500 hover:text-indigo-600 transition-colors" />
               </a>
-              <a href="https://www.facebook.com/people/DTU_Official/100065103819173/" target="_blank" rel="noopener noreferrer" className="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-lg transition-all duration-300 hover:scale-110">
-                <Facebook className="h-4 w-4 text-slate-400 hover:text-indigo-400 transition-colors" />
+              <a href="https://www.facebook.com/people/DTU_Official/100065103819173/" target="_blank" rel="noopener noreferrer" className="bg-white border border-slate-200 hover:bg-slate-50 p-2 rounded-lg transition-all duration-300 hover:scale-105">
+                <Facebook className="h-4 w-4 text-slate-500 hover:text-indigo-600 transition-colors" />
               </a>
             </div>
           </div>
 
           {/* Contact Section */}
-          <div className="flex-1 min-w-[280px] max-w-sm">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Get in Touch</h3>
+          <div className="flex-1 min-w-[260px] max-w-sm">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Get in Touch</h3>
             <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 shadow-sm">
                 <div className="bg-indigo-500/10 p-2 rounded-lg">
-                  <MapPin className="h-4 w-4 text-indigo-400" />
+                  <MapPin className="h-4 w-4 text-indigo-600" />
                 </div>
-                <div className="text-xs text-slate-400 leading-relaxed">
+                <div className="text-xs text-slate-600 leading-relaxed">
                   Shahbad Daulatpur, Main Bawana Road,<br />
                   Delhi-110042, India
                 </div>
               </div>
               
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
+              <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 shadow-sm">
                 <div className="bg-indigo-500/10 p-2 rounded-lg">
-                  <Phone className="h-4 w-4 text-indigo-400" />
+                  <Phone className="h-4 w-4 text-indigo-600" />
                 </div>
-                <span className="text-xs text-slate-400">+91-11-27871018</span>
+                <span className="text-xs text-slate-600">+91-11-27871018</span>
               </div>
               
               <a 
                 href="mailto:accounts@dtu.ac.in"
-                className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/40 hover:border-indigo-500/50 hover:bg-slate-800/60 transition-all duration-300 group"
+                className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white border border-slate-200 hover:border-indigo-500/30 hover:bg-slate-50 transition-all duration-300 group shadow-sm"
               >
                 <div className="bg-indigo-500/10 p-2 rounded-lg">
-                  <Mail className="h-4 w-4 text-indigo-400" />
+                  <Mail className="h-4 w-4 text-indigo-600" />
                 </div>
-                <span className="text-xs text-slate-400 group-hover:text-indigo-400 transition-colors">accounts@dtu.ac.in</span>
+                <span className="text-xs text-slate-600 group-hover:text-indigo-700 transition-colors">accounts@dtu.ac.in</span>
               </a>
             </div>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-slate-800 pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-xs text-slate-500">
+        <div className="border-t border-slate-200 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-600">
               © {currentYear} Delhi Technological University — All Rights Reserved
             </p>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Terms</a>
-              <a href="#" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Security</a>
-              <a href="#" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Accessibility</a>
+            <div className="flex items-center gap-4">
+              <a href="#" className="text-xs text-slate-600 hover:text-slate-800 transition-colors">Terms</a>
+              <a href="#" className="text-xs text-slate-600 hover:text-slate-800 transition-colors">Security</a>
+              <a href="#" className="text-xs text-slate-600 hover:text-slate-800 transition-colors">Accessibility</a>
             </div>
           </div>
         </div>

@@ -3,10 +3,12 @@ import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import type { SubmitHandler } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { Building, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/authService';
 import type { LoginCredentials } from '../services/authService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import DTULogo from '../assets/dtu-logo.png';
+import BgImage from '../assets/new.jpg';
 
 interface DefaultCredential {
   role: string;
@@ -19,7 +21,12 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginCredentials>();
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginCredentials>({
+    defaultValues: {
+      username: 'clerk',
+      password: 'clerk12345'
+    }
+  });
 
   // If already authenticated, redirect to next if present or to home
   const location = useLocation();
@@ -65,24 +72,30 @@ const LoginPage: React.FC = () => {
   };
 
   const defaultCredentials: DefaultCredential[] = [
-    { role: 'Admin', username: 'admin', password: 'admin123' },
-    { role: 'COF', username: 'cof.accounts', password: 'cof123' },
-    { role: 'Clerk', username: 'clerk.intake', password: 'clerk123' },
-    { role: 'AO', username: 'ao.ramesh', password: 'ao123' }
+    { role: 'Admin', username: 'admin', password: 'admin12345' },
+    { role: 'COF', username: 'cof', password: 'cof12345' },
+    { role: 'Clerk', username: 'clerk', password: 'clerk12345' },
+    { role: 'Officer', username: 'officer', password: 'officer12345' }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen relative flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      {/* Background image at 50% opacity */}
+      <img
+        src={BgImage}
+        alt="DTU Campus"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      {/* Dark overlay to mix with the image */}
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative z-10 max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary-600 rounded-full flex items-center justify-center">
-            <Building className="h-8 w-8 text-white" />
-          </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+          <img src={DTULogo} alt="DTU Logo" className="mx-auto h-16 w-16 rounded-full object-cover shadow" />
+          <h2 className="mt-6 text-3xl font-bold text-white">
             DTU File Tracking System
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-gray-100">
             Accounts Department - Sign in to your account
           </p>
         </div>
@@ -176,7 +189,7 @@ const LoginPage: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-xs text-gray-500">
+        <div className="text-center text-xs text-gray-100">
           <p>DTU - Accounts Department</p>
           <p className="mt-1">For authorized personnel only</p>
         </div>

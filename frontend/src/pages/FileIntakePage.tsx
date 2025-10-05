@@ -47,6 +47,9 @@ export default function FileIntakePage() {
   const [officers, setOfficers] = useState<Array<any>>([]);
   const [nextFileNo, setNextFileNo] = useState<string | null>(null);
   const [slaPreview, setSlaPreview] = useState<{ id?: number; name?: string; sla_minutes?: number } | null>(null);
+  // Similar files state (right panel)
+  const [similarLoading, setSimilarLoading] = useState(false);
+  const [similar, setSimilar] = useState<any[]>([]);
 
   function truncateLabel(s: any, max = 30) {
     const str = String(s ?? '');
@@ -172,8 +175,29 @@ export default function FileIntakePage() {
     }
   }, [form.category_id, form.priority, slaPolicies]);
 
+  // Debounced fetch for similar-subject files
+  useEffect(() => {
+    const subject = (form.subject || '').trim();
+    // Only search when at least 3 characters
+    if (subject.length < 3) { setSimilar([]); return; }
+    const handle = setTimeout(async () => {
+      setSimilarLoading(true);
+      try {
+        const dateFrom = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+        const res = await fileService.listFiles({ q: subject, date_from: dateFrom, limit: 8, includeSla: false });
+        const results = (res as any)?.results ?? (res as any)?.data ?? [];
+        setSimilar(results);
+      } catch {
+        setSimilar([]);
+      } finally {
+        setSimilarLoading(false);
+      }
+    }, 350); // debounce ~350ms
+    return () => clearTimeout(handle);
+  }, [form.subject]);
+
   return (
-    <div className="max-w-3xl mx-auto py-10">
+    <div className="max-w-6xl mx-auto py-10">
       <h2 className="text-2xl font-bold mb-2">File Intake</h2>
       {/* Top strip: File No preview and SLA preview */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -196,7 +220,9 @@ export default function FileIntakePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main form */}
+        <form onSubmit={handleSubmit} className="space-y-4 lg:col-span-3">
         {currentUser ? (
           <div className="text-sm text-gray-600">Creating as: <strong>{currentUser.name ?? currentUser.username}</strong></div>
         ) : (
@@ -357,7 +383,49 @@ export default function FileIntakePage() {
             {submitting ? 'Submitting...' : 'Create File'}
           </button>
         </div>
-      </form>
+        </form>
+
+        {/* Right panel: similar files */}
+        <aside className="lg:col-span-1">
+          <div className="sticky top-20">
+            <div className="p-4 bg-white border rounded">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-800">Similar files</h3>
+                {similarLoading && <span className="text-xs text-gray-500">Loading…</span>}
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Shows recent files matching the subject.</p>
+              {(!similar || similar.length === 0) && !similarLoading && (
+                <div className="text-xs text-gray-400">No similar files yet.</div>
+              )}
+              <ul className="space-y-2 max-h-[420px] overflow-auto pr-1">
+                {similar.map((r: any) => (
+                  <li key={r.id} className="group">
+                    <div className="p-2 rounded border hover:bg-slate-50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-mono text-gray-600">{r.file_no || `#${r.id}`}</span>
+                        <span className={"text-[10px] px-1.5 py-0.5 rounded " + (String(r.status||'').toLowerCase().includes('cof') ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-700')}>{r.status || 'Open'}</span>
+                      </div>
+                      <div className="mt-1 text-sm text-gray-800 line-clamp-2" title={r.subject}>{r.subject}</div>
+                      <div className="mt-1 text-[11px] text-gray-500 flex items-center justify-between">
+                        <span>{r.category?.name || r.category_name || r.category || '—'}</span>
+                        <span>{new Date(r.created_at || r.date_initiated || Date.now()).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 text-right">
+                <a
+                  href={`/file-search?q=${encodeURIComponent(form.subject || '')}`}
+                  className="text-xs text-indigo-600 hover:text-indigo-700"
+                >
+                  Open in Search
+                </a>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
