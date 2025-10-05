@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderKanban, LogOut, User } from 'lucide-react'; 
+import { FolderKanban, LogOut } from 'lucide-react'; 
 
 interface HeaderProps {
   currentUser: { name?: string; role?: string; } | null;
