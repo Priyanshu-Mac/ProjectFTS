@@ -178,6 +178,81 @@
 
 // export default Layout;
 
+
+// import React from 'react';
+// import { useNavigate } from 'react-router-dom';
+// import { 
+//   Home, FileText, Plus, Search, BarChart3, User, Building, FolderOpen 
+// } from 'lucide-react';
+// import type { LucideIcon } from 'lucide-react';
+
+// import { authService } from '../../services/authService';
+// import { Sidebar } from './Sidebar'; // Import new component
+// import { Header } from './Header';   // Import new component
+
+// // Define types and navigation data
+// interface NavigationItem {
+//   name: string;
+//   href: string;
+//   icon: LucideIcon;
+//   roles: string[];
+// }
+
+// const navigation: NavigationItem[] = [
+//   { name: 'Dashboard', href: '/', icon: Home, roles: ['clerk', 'accounts_officer', 'cof', 'admin'] },
+//   { name: 'File Intake', href: '/file-intake', icon: Plus, roles: ['clerk', 'cof', 'admin'] },
+//   { name: 'Move File', href: '/move-file', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
+//   { name: 'File Search', href: '/file-search', icon: Search, roles: ['clerk', 'accounts_officer', 'cof', 'admin'] },
+//   { name: 'COF Review', href: '/cof-review', icon: FileText, roles: ['cof', 'admin'] },
+//   { name: 'Officer Kanban', href: '/kanban', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
+//   { name: 'Reports / Exports', href: '/reports', icon: BarChart3, roles: ['cof', 'admin'] },
+//   { name: 'Audit Logs', href: '/audit-logs', icon: FileText, roles: ['cof', 'admin'] },
+//   { name: 'Admin', href: '/admin', icon: User, roles: ['admin'] },
+//   { name: 'Master Data', href: '/master-data', icon: Building, roles: ['admin'] }
+// ];
+
+// interface LayoutProps {
+//   children: React.ReactNode;
+// }
+
+// const Layout: React.FC<LayoutProps> = ({ children }) => {
+//   const navigate = useNavigate();
+//   const currentUser = authService.getCurrentUser();
+
+//   const handleLogout = () => {
+//     authService.logout();
+//     navigate('/login');
+//   };
+
+//   // Filter navigation items based on the current user's role
+//   const allowedNavigation = navigation.filter(item => 
+//     currentUser?.role && item.roles.includes(currentUser.role)
+//   );
+
+//   return (
+//     <div className="flex h-screen bg-slate-50 overflow-hidden">
+//       {/* Sidebar Component */}
+//       <Sidebar navigation={allowedNavigation} />
+
+//       {/* Main Content Area */}
+//       <div className="flex-1 flex flex-col">
+//         {/* Header Component */}
+//         <Header currentUser={currentUser} onLogout={handleLogout} />
+
+//         {/* Page Content */}
+//         <main className="flex-1 p-6 overflow-y-auto">
+//           <div className="max-w-7xl mx-auto">
+//             {children}
+//           </div>
+//         </main>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default Layout;
+
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -185,9 +260,11 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { authService } from '../../services/authService';
-import { Sidebar } from './Sidebar'; // Import new component
-import { Header } from './Header';   // Import new component
+// Your existing imports
+import { authService } from '../../services/authService.ts';
+import { Sidebar } from './Sidebar.tsx';
+import { Header } from './Header.tsx';
+import Footer from './Footer.tsx';
 
 // Define types and navigation data
 interface NavigationItem {
@@ -223,28 +300,32 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // Filter navigation items based on the current user's role
   const allowedNavigation = navigation.filter(item => 
     currentUser?.role && item.roles.includes(currentUser.role)
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar Component */}
-      <Sidebar navigation={allowedNavigation} />
+    <div className="flex flex-col min-h-screen bg-slate-50">
+      
+      {/* Header remains at the top */}
+      <Header currentUser={currentUser} onLogout={handleLogout} />
+      
+      {/* This container holds the sidebar and main content, and it grows to fill space */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* Sidebar */}
+        <Sidebar navigation={allowedNavigation} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header Component */}
-        <Header currentUser={currentUser} onLogout={handleLogout} />
-
-        {/* Page Content */}
-        <main className="flex-1 p-6 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
+        {/* Main content area is now the only scrollable part */}
+        <main className="flex-1 p-6 overflow-y-auto min-h-screen">
+          <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
         </main>
       </div>
+
+      {/* ADD THE FOOTER AT THE END */}
+      <Footer />
     </div>
   );
 };
