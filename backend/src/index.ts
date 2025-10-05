@@ -24,7 +24,7 @@ import { logAudit } from './middleware/audit';
 
 const app = express();
 // CORS: allow the frontend origin (configurable). Default to http://localhost:5173 for local dev.
-const allowedOrigin = process.env.FRONTEND_ORIGIN;
+const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], credentials: true }));
 app.use(express.json());
 
