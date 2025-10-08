@@ -168,20 +168,7 @@ function App() {
               }
             />
             
-            {/* Master Data - Admin only */}
-            <Route
-              path="/master-data"
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Layout>
-                    <div className="text-center py-12">
-                      <h2 className="text-2xl font-bold text-gray-900">Master Data</h2>
-                      <p className="text-gray-600 mt-2">Coming soon...</p>
-                    </div>
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            {/** Data Setup removed per request */}
             
             {/* Catch all route */}
             <Route 

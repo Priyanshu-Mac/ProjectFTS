@@ -256,7 +256,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Home, FileText, Plus, Search, BarChart3, User, Building, FolderOpen 
+  Home, FileText, Plus, Search, BarChart3, User, FolderOpen 
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -283,8 +283,7 @@ const navigation: NavigationItem[] = [
   { name: 'Work Board', href: '/kanban', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
   { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['cof', 'admin'] },
   { name: 'Activity Log', href: '/audit-logs', icon: FileText, roles: ['cof', 'admin'] },
-  { name: 'Admin', href: '/admin', icon: User, roles: ['admin'] },
-  { name: 'Data Setup', href: '/master-data', icon: Building, roles: ['admin'] }
+  { name: 'Admin', href: '/admin', icon: User, roles: ['admin'] }
 ];
 
 interface LayoutProps {

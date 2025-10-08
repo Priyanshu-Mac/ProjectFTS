@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: fts_db
+    environment:
+      POSTGRES_USER: fts
+      POSTGRES_PASSWORD: fts
+      POSTGRES_DB: fts
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fts -d fts"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    image: ${DOCKERHUB_NS}/projectfts-migrate:${TAG:-latest}
+    container_name: fts_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: fts
+      PGPASSWORD: fts
+      PGDATABASE: fts
+      RESET_DB: "true"
+      APPLY_ONLY_FILE: /extras/LatestDBExport.sql
+    volumes:
+      - ./LatestDBExport.sql:/extras/LatestDBExport.sql:ro
+    command: ["/app/apply-migrations.sh"]
+
+  backend:
+    image: ${DOCKERHUB_NS}/projectfts-backend:${TAG:-latest}
+    container_name: fts_backend
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://fts:fts@db:5432/fts
+      JWT_SECRET: dev-secret
+      FRONTEND_ORIGIN: http://localhost:5173
+      SLA_CALC_MODE: business
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  frontend:
+    image: ${DOCKERHUB_NS}/projectfts-frontend:${TAG:-latest}
+    container_name: fts_frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  db_data:
