@@ -170,8 +170,8 @@ export default function COFReviewPage() {
   return (
     <div className="space-y-6 overflow-x-hidden">
       <div>
-        <h1 className="text-2xl font-bold">COF Final Review</h1>
-  <p className="text-sm text-gray-600">Review files With COF, add remarks, and dispatch with a required signature.</p>
+    <h1 className="text-2xl font-bold">Final Review</h1>
+  <p className="text-sm text-gray-600">Review files with Finance, add remarks, and send with a signature.</p>
         <label className="inline-flex items-center gap-2 mt-3 text-sm text-gray-700">
           <input type="checkbox" className="rounded" checked={onlyMine} onChange={(e)=>setOnlyMine(e.target.checked)} />
           <span>Show only files assigned to me</span>

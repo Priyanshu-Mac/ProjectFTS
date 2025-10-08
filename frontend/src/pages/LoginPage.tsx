@@ -23,8 +23,8 @@ const LoginPage: React.FC = () => {
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginCredentials>({
     defaultValues: {
-      username: 'clerk',
-      password: 'clerk12345'
+      username: '',
+      password: ''
     }
   });
 
@@ -41,7 +41,7 @@ const LoginPage: React.FC = () => {
     try {
       const resp = await authService.login(data);
       if (resp?.token) {
-        toast.success('Login successful!');
+        toast.success('Login successful!', { duration: 1200 });
         // redirect to requested page when available (from ?next=...)
         navigate(next || '/', { replace: true });
       } else {

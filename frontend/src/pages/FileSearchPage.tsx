@@ -119,7 +119,7 @@ export default function FileSearchPage() {
           {(((currentUser?.role ?? '').toLowerCase() === 'cof') || ((currentUser?.role ?? '').toLowerCase() === 'admin')) && (
             <label className="inline-flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" className="rounded border-gray-300" checked={onlyWithCOF} onChange={(e) => setOnlyWithCOF(e.target.checked)} />
-              <span>Show only files With COF</span>
+              <span>Show only files with Finance</span>
             </label>
           )}
         </div>

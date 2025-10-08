@@ -9,6 +9,7 @@ import {
   
 } from 'lucide-react';
 import { dashboardService } from '../services/dashboardService';
+import { masterDataService } from '../services/masterDataService';
 import { fileService } from '../services/fileService';
 import { authService } from '../services/authService';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -30,9 +31,9 @@ const DashboardPage = () => {
 
   // Fetch dashboard data based on user role (COF/Admin vs Officer). Disabled for clerks.
   const { data: dashboardData, isLoading, error } = useQuery<any>({
-    queryKey: isCOF ? ['dashboard', 'executive', { onlyWithCOF }] : ['dashboard', 'officer', { onlyMine, userId: currentUser?.id }],
+    queryKey: isCOF ? ['dashboard', 'executive', { onlyWithCOF, holderId: onlyWithCOF ? currentUser?.id : null }] : ['dashboard', 'officer', { onlyMine, userId: currentUser?.id }],
     queryFn: async () => (isCOF
-      ? await dashboardService.getExecutiveDashboard({ onlyWithCOF })
+      ? await dashboardService.getExecutiveDashboard({ onlyWithCOF, holderId: onlyWithCOF ? Number(currentUser?.id) : undefined })
       : await dashboardService.getOfficerDashboard(Number(currentUser?.id), { onlyMine })
     ),
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -106,7 +107,7 @@ const DashboardPage = () => {
       {/* Page Header */}
       <div className="border-b border-gray-200 pb-4">
         <h1 className="text-2xl font-bold text-gray-900">
-          {isCOF ? 'Executive Dashboard' : 'My Dashboard'}
+          {isCOF ? 'COF Dashboard' : 'My Dashboard'}
         </h1>
   <p className="mt-1 text-sm text-gray-600">
           {isCOF 
@@ -125,7 +126,7 @@ const DashboardPage = () => {
                   checked={onlyWithCOF}
                   onChange={(e) => setOnlyWithCOF(e.target.checked)}
                 />
-                <span>Show only files With COF</span>
+                <span>Show only files assigned to me</span>
               </label>
             ) : (
               <>
@@ -141,7 +142,7 @@ const DashboardPage = () => {
               </>
             )}
             <div className="text-xs text-gray-500">
-              Viewing: {isCOF ? (onlyWithCOF ? 'With COF' : 'All open files') : (onlyMine ? 'My assigned' : 'All open files')}
+              Viewing: {isCOF ? (onlyWithCOF ? 'My files' : 'All open files') : (onlyMine ? 'My assigned' : 'All open files')}
             </div>
           </div>
         )}
@@ -196,10 +197,6 @@ const DashboardPage = () => {
 const ClerkDashboard = ({ files = [] as any[] }) => {
   return (
     <div className="space-y-6">
-      <div className="border-b border-gray-200 pb-4">
-        <h1 className="text-2xl font-bold text-gray-900">Clerk Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-600">File intake and your owned files</p>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
@@ -255,6 +252,26 @@ const ClerkDashboard = ({ files = [] as any[] }) => {
 const ExecutiveDashboard = ({ data }: { data: any }) => {
   const navigate = useNavigate();
   const { kpis = {}, oldest_files = [], longest_delays = [], breached_files = [], pendency_by_office = [], imminent_breaches = [], officer_workload = [], aging_buckets = [] } = (data || {});
+
+  // Map officer IDs to names for friendlier display
+  const [userNames, setUserNames] = React.useState<Record<number, string>>({});
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const users = await masterDataService.getUsers('AccountsOfficer').catch(() => []);
+        if (!mounted) return;
+        const map: Record<number, string> = {};
+        for (const u of (Array.isArray(users) ? users : [])) {
+          if (u?.id) map[u.id] = u.name || u.username || `User #${u.id}`;
+        }
+        setUserNames(map);
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const sortedWorkload = React.useMemo(() => Array.isArray(officer_workload) ? officer_workload : [], [officer_workload]);
 
   const maxPendency = Math.max(1, ...pendency_by_office.map((o: any) => Number(o.pending_count || 0)));
   const catColors = ['bg-blue-400','bg-green-400','bg-yellow-400','bg-red-400','bg-purple-400','bg-pink-400','bg-teal-400','bg-indigo-400'];
@@ -438,24 +455,51 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
         {/* Officer Efficiency (Workload) */}
         <div className="card">
           <div className="card-header">
-            <h3 className="text-lg font-medium text-gray-900">Officer Workload</h3>
-            <p className="text-sm text-gray-500">Assigned · Due Soon · Overdue</p>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Officer workload</h3>
+              <div className="mt-1 flex items-center gap-3 text-xs text-gray-600">
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-400"></span>On track</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-yellow-400"></span>Due soon</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-400"></span>Overdue</span>
+              </div>
+            </div>
           </div>
           <div className="card-body">
-            {officer_workload.length > 0 ? (
-              <div className="space-y-2">
-                {officer_workload.map((r: any) => (
-                  <div key={r.user_id} className="flex items-center justify-between text-sm">
-                    <div className="text-gray-800">User #{r.user_id}</div>
-                    <div className="flex items-center gap-3">
-                      <span title="Assigned" className="px-2 py-0.5 rounded bg-gray-100">{r.assigned}</span>
-                      <span title="Due Soon" className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">{r.due_soon}</span>
-                      <span title="Overdue" className="px-2 py-0.5 rounded bg-red-100 text-red-800">{r.overdue}</span>
-                      {typeof r.on_time_pct !== 'undefined' && <span title="On-time %" className="px-2 py-0.5 rounded bg-green-100 text-green-800">{r.on_time_pct}%</span>}
-                      {typeof r.score !== 'undefined' && <span title="Efficiency Score" className="px-2 py-0.5 rounded bg-blue-100 text-blue-800">{r.score}</span>}
+            {sortedWorkload.length > 0 ? (
+              <div className="space-y-3">
+                {sortedWorkload.map((r: any) => {
+                  const name = userNames[r.user_id] || `User #${r.user_id}`;
+                  const total = Math.max(1, Number(r.assigned || 0));
+                  const dueSoonPct = Math.round(Math.min(100, Math.max(0, (Number(r.due_soon || 0) / total) * 100)));
+                  const overduePct = Math.round(Math.min(100, Math.max(0, (Number(r.overdue || 0) / total) * 100)));
+                  const onTrackPct = Math.max(0, 100 - dueSoonPct - overduePct);
+                  return (
+                    <div key={r.user_id} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-gray-900 font-medium truncate" title={name}>{name}</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-600" title="Total assigned">{r.assigned}</span>
+                          {typeof r.on_time_pct !== 'undefined' && (
+                            <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200" title="On-time %">{r.on_time_pct}%</span>
+                          )}
+                          {typeof r.score !== 'undefined' && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" title="Efficiency score">{r.score}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full h-3 rounded bg-gray-100 overflow-hidden flex" role="img" aria-label={`On track ${Math.round((onTrackPct/100)*total)}; Due soon ${r.due_soon}; Overdue ${r.overdue}`}>
+                        <div className="h-3 bg-green-400" style={{ width: `${onTrackPct}%` }} title={`On track: ${Math.round((onTrackPct/100)*total)} files`} />
+                        <div className="h-3 bg-yellow-400" style={{ width: `${dueSoonPct}%` }} title={`Due soon: ${r.due_soon}`} />
+                        <div className="h-3 bg-red-400" style={{ width: `${overduePct}%` }} title={`Overdue: ${r.overdue}`} />
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-gray-600">
+                        <span>{Math.round((onTrackPct/100)*total)} on track</span>
+                        <span>{r.due_soon} due soon</span>
+                        <span>{r.overdue} overdue</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500 text-center py-4">No assignments</p>
@@ -464,41 +508,55 @@ const ExecutiveDashboard = ({ data }: { data: any }) => {
         </div>
       </div>
 
-      {/* Aging Buckets and Imminent Breaches */}
+      {/* File age and Imminent Breaches */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        {/* Aging Buckets */}
+        {/* File age (simplified aging buckets) */}
         <div className="card">
           <div className="card-header">
-            <h3 className="text-lg font-medium text-gray-900">Aging Buckets</h3>
-            <p className="text-sm text-gray-500">0–2d · 3–5d · 6–10d · &gt;10d</p>
+            <h3 className="text-lg font-medium text-gray-900">File age</h3>
+            <p className="text-sm text-gray-500">0–2 days · 3–5 · 6–10 · over 10</p>
           </div>
           <div className="card-body">
             {aging_buckets.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {aging_buckets.map((b: any) => {
-                  const total = Math.max(1, Number(b.total || 0));
-                  const entries = Object.entries(b.by_category || {}).sort((a,b)=> Number(b[1] as any) - Number(a[1] as any)).slice(0, 6);
-                  return (
-                    <div key={b.bucket} className="p-3 rounded bg-gray-50">
-                      <div className="text-xs text-gray-500">{b.bucket} days</div>
-                      <div className="text-xl font-semibold text-gray-900">{b.total}</div>
-                      <div className="mt-2 w-full bg-gray-200 h-3 rounded flex overflow-hidden">
-                        {entries.map(([cat, cnt], idx) => (
-                          <div key={String(cat)} className={`${colorFor(idx)} h-3`} style={{ width: `${Math.max(2, Math.round((Number(cnt as any) / total) * 100))}%` }} title={`${cat}: ${cnt as any}`} />
-                        ))}
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-1">
-                        {entries.slice(0,4).map(([cat, cnt], idx) => (
-                          <div key={String(cat)} className="flex items-center gap-1 text-[11px] text-gray-700">
-                            <span className={`inline-block w-2 h-2 rounded ${colorFor(idx)}`} />
-                            <span className="truncate" title={String(cat)}>{String(cat)}</span>
-                            <span className="ml-auto">{cnt as any}</span>
+              <div className="space-y-3">
+                {(() => {
+                  const maxTotal = Math.max(1, ...aging_buckets.map((b: any) => Number(b.total || 0)));
+                  const labelFor = (bucket: string) => {
+                    if (bucket === '0-2') return '0–2 days';
+                    if (bucket === '3-5') return '3–5 days';
+                    if (bucket === '6-10') return '6–10 days';
+                    return 'Over 10 days';
+                  };
+                  return aging_buckets.map((b: any) => {
+                    const total = Number(b.total || 0);
+                    const widthPct = Math.max(2, Math.round((total / maxTotal) * 100));
+                    const topCats = Object.entries(b.by_category || {})
+                      .sort((a:any,b:any)=> Number(b[1]) - Number(a[1]))
+                      .slice(0, 2);
+                    return (
+                      <div key={b.bucket} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="text-gray-800">{labelFor(b.bucket)}</div>
+                          <div className="text-xs text-gray-600">{total}</div>
+                        </div>
+                        <div className="w-full bg-gray-100 h-3 rounded">
+                          <div className="h-3 rounded bg-blue-400" style={{ width: `${widthPct}%` }} />
+                        </div>
+                        {topCats.length > 0 && (
+                          <div className="flex items-center gap-2 text-[11px] text-gray-600">
+                            {topCats.map(([cat, cnt]: any, idx: number) => (
+                              <span key={String(cat)} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-50 border border-gray-200" title={`${String(cat)}: ${cnt}`}>
+                                <span className={`inline-block w-2 h-2 rounded ${idx === 0 ? 'bg-blue-400' : 'bg-indigo-400'}`} />
+                                <span className="truncate max-w-[120px]" title={String(cat)}>{String(cat)}</span>
+                                <span className="text-gray-500">{cnt as any}</span>
+                              </span>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             ) : (
               <p className="text-gray-500 text-center py-4">No data</p>

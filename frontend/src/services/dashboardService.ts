@@ -46,14 +46,18 @@ export const dashboardService = {
     };
   },
 
-  // Executive dashboard computed on the client using /files includeSla
-  async getExecutiveDashboard(opts: { onlyWithCOF?: boolean } = {}) {
+  // COF dashboard computed on the client using /files includeSla
+  async getExecutiveDashboard(opts: { onlyWithCOF?: boolean; holderId?: number } = {}) {
     const res = await api.get('/files', { params: { includeSla: true, limit: 500 } });
     const results: FileRow[] = res.data?.results ?? res.data ?? [];
     const openStatuses = new Set(['Open', 'WithOfficer', 'WithCOF', 'WaitingOnOrigin', 'OnHold']);
     let openFiles = results.filter((f) => openStatuses.has(String(f.status)));
     if (opts.onlyWithCOF) {
       openFiles = openFiles.filter((f) => String(f.status) === 'WithCOF');
+    }
+    if (opts.holderId) {
+      const idNum = Number(opts.holderId);
+      openFiles = openFiles.filter((f) => Number(f.current_holder_user_id || 0) === idNum);
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -113,7 +117,7 @@ export const dashboardService = {
       const overdueRatio = Math.max(0, Math.min(1, w.overdue / assigned));
       const score = 0.6 * onTime + 0.4 * (1 - overdueRatio);
       return { ...w, on_time_pct: Math.round(onTime * 100), score: Math.round(score * 100) };
-    }).sort((a, b) => (b.score! - a.score!)).slice(0, 10);
+    }).sort((a, b) => (b.score! - a.score!));
 
     // Aging buckets 0–2d, 3–5d, 6–10d, >10d (using received date fallback to created)
     const ageInDays = (f: FileRow) => {
@@ -173,7 +177,7 @@ export const dashboardService = {
         aging_buckets,
         imminent_breaches,
         officer_workload,
-        view: { onlyWithCOF: !!opts.onlyWithCOF },
+        view: { onlyWithCOF: !!opts.onlyWithCOF, holderId: opts.holderId ?? null },
       },
     };
   },

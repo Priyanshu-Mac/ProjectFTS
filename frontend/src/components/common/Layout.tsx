@@ -276,15 +276,15 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/', icon: Home, roles: ['clerk', 'accounts_officer', 'cof', 'admin'] },
-  { name: 'File Intake', href: '/file-intake', icon: Plus, roles: ['clerk', 'cof', 'admin'] },
+  { name: 'New File', href: '/file-intake', icon: Plus, roles: ['clerk', 'cof', 'admin'] },
   { name: 'Move File', href: '/move-file', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
-  { name: 'File Search', href: '/file-search', icon: Search, roles: ['clerk', 'accounts_officer', 'cof', 'admin'] },
-  { name: 'COF Review', href: '/cof-review', icon: FileText, roles: ['cof', 'admin'] },
-  { name: 'Officer Kanban', href: '/kanban', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
-  { name: 'Reports / Exports', href: '/reports', icon: BarChart3, roles: ['cof', 'admin'] },
-  { name: 'Audit Logs', href: '/audit-logs', icon: FileText, roles: ['cof', 'admin'] },
+  { name: 'Search Files', href: '/file-search', icon: Search, roles: ['clerk', 'accounts_officer', 'cof', 'admin'] },
+  { name: 'Final Review', href: '/cof-review', icon: FileText, roles: ['cof', 'admin'] },
+  { name: 'Work Board', href: '/kanban', icon: FolderOpen, roles: ['accounts_officer', 'cof', 'admin'] },
+  { name: 'Reports', href: '/reports', icon: BarChart3, roles: ['cof', 'admin'] },
+  { name: 'Activity Log', href: '/audit-logs', icon: FileText, roles: ['cof', 'admin'] },
   { name: 'Admin', href: '/admin', icon: User, roles: ['admin'] },
-  { name: 'Master Data', href: '/master-data', icon: Building, roles: ['admin'] }
+  { name: 'Data Setup', href: '/master-data', icon: Building, roles: ['admin'] }
 ];
 
 interface LayoutProps {

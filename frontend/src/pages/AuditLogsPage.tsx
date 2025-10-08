@@ -35,8 +35,8 @@ export default function AuditLogsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b pb-2">
         <div>
-          <h1 className="text-2xl font-bold">Audit Logs</h1>
-          <p className="text-sm text-gray-600">Movement history (Created and file events)</p>
+          <h1 className="text-2xl font-bold">Activity Log</h1>
+          <p className="text-sm text-gray-600">History of changes and movements</p>
         </div>
         <div className="text-sm text-gray-600">Total: {total}</div>
       </div>

@@ -89,7 +89,7 @@ export default function FileDetailPage() {
                 <span className="px-2 py-0.5 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200">{file.priority}</span>
               )}
               {file.sla_status && (
-                <span className="px-2 py-0.5 text-xs rounded border" title={`SLA ${file.sla_percent ?? 0}%`}>
+                <span className="px-2 py-0.5 text-xs rounded border" title={`Time limit ${file.sla_percent ?? 0}%`}>
                   {file.sla_status}
                 </span>
               )}
@@ -108,7 +108,7 @@ export default function FileDetailPage() {
                 className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md border border-transparent text-white bg-red-600 hover:bg-red-700"
                 onClick={() => setShowSlaModal(true)}
               >
-                Add SLA Reason
+                Add reason for delay
               </button>
             )}
           </div>

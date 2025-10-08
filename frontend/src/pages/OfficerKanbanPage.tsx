@@ -44,7 +44,7 @@ export default function OfficerKanbanPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Officer Kanban</h1>
+  <h1 className="text-2xl font-bold mb-4">Work board</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
         {cols.map(([name, rows]) => (
           <div key={name} className="bg-gray-50 border rounded p-3">

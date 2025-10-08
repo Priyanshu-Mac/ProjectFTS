@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { masterDataService } from '../services/masterDataService';
@@ -24,6 +24,22 @@ export default function FileIntakePage() {
   const navigate = useNavigate();
   const currentUser = authService.getCurrentUser();
   const [submitting, setSubmitting] = useState(false);
+  type FormErrors = Partial<Record<'subject' | 'notesheet_title' | 'date_initiated' | 'remarks', string>>;
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Refs to programmatically open native date pickers
+  const dateInitiatedRef = useRef<HTMLInputElement | null>(null);
+  const dateReceivedRef = useRef<HTMLInputElement | null>(null);
+
+  const openDatePicker = (ref: React.RefObject<HTMLInputElement>) => {
+    const el = ref.current as any;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') {
+      try { el.showPicker(); return; } catch {}
+    }
+    // Fallback: focus (won't open picker everywhere, but harmless)
+    el.focus();
+  };
 
   const [form, setForm] = useState<Payload>({
     subject: '',
@@ -35,7 +51,7 @@ export default function FileIntakePage() {
     confidentiality: undefined,
     // date_initiated is required by the DB; default to today
     date_initiated: new Date().toISOString().slice(0, 10),
-    date_received_accounts: undefined,
+    date_received_accounts: new Date().toISOString().slice(0, 10),
     forward_to_officer_id: undefined,
     save_as_draft: false,
     remarks: undefined,
@@ -69,6 +85,21 @@ export default function FileIntakePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Validate required fields first and show inline errors
+    const errs: FormErrors = {};
+    if (!form.subject?.trim()) errs.subject = 'Subject is required';
+    if (!form.notesheet_title?.trim()) errs.notesheet_title = 'Notesheet title is required';
+    if (!form.date_initiated) errs.date_initiated = 'Date initiated is required';
+    if (!form.remarks) errs.remarks = 'Remarks are required';
+
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs);
+      toast.error('Please fill the required fields.');
+      return;
+    } else {
+      setFormErrors({});
+    }
+
     setSubmitting(true);
     try {
       // ensure user is logged in (frontend) — backend will also enforce auth
@@ -77,10 +108,7 @@ export default function FileIntakePage() {
         navigate('/login');
         return;
       }
-      // Basic client-side validation per DB constraints
-      if (!form.subject?.trim()) throw new Error('Subject is required');
-      if (!form.notesheet_title?.trim()) throw new Error('Notesheet title is required');
-      if (!form.date_initiated) throw new Error('Date initiated is required');
+      // Basic client-side validation per DB constraints handled above
       // Build payload following backend expectations
       const payload: any = {
         subject: form.subject,
@@ -95,7 +123,7 @@ export default function FileIntakePage() {
         date_received_accounts: form.date_received_accounts ?? null,
         forward_to_officer_id: form.forward_to_officer_id ?? null,
         save_as_draft: !!form.save_as_draft,
-        remarks: form.remarks ?? null,
+        remarks: form.remarks,
       };
       const data = await fileService.createFile(payload);
       toast.success('File created — ' + (data?.file?.file_no ?? ''));
@@ -199,14 +227,14 @@ export default function FileIntakePage() {
   return (
     <div className="max-w-6xl mx-auto py-10">
       <h2 className="text-2xl font-bold mb-2">File Intake</h2>
-      {/* Top strip: File No preview and SLA preview */}
+  {/* Top strip: File No preview and time limit preview */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="p-3 border rounded bg-gray-50">
           <div className="text-xs text-gray-500">File No (preview)</div>
           <div className="font-mono text-lg">{nextFileNo ?? '—'}</div>
         </div>
         <div className="p-3 border rounded bg-gray-50">
-          <div className="text-xs text-gray-500">SLA (auto from Category + Priority)</div>
+          <div className="text-xs text-gray-500">Time limit (auto from Category + Priority)</div>
           {slaPreview ? (
             <div>
               <div className="font-medium">{slaPreview.name ?? `Policy #${slaPreview.id}`}</div>
@@ -233,10 +261,13 @@ export default function FileIntakePage() {
           <input
             required
             value={form.subject}
-            onChange={(e) => update('subject', e.target.value)}
-            className="mt-1 block w-full border rounded p-2"
+            onChange={(e) => { update('subject', e.target.value); if (formErrors.subject) setFormErrors((s) => ({ ...s, subject: e.target.value.trim() ? undefined : 'Subject is required' })); }}
+            className={`mt-1 block w-full border rounded p-2 ${formErrors.subject ? 'border-red-500' : ''}`}
             placeholder="Enter file subject"
           />
+            {formErrors.subject && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.subject}</p>
+            )}
         </div>
 
         <div>
@@ -244,10 +275,13 @@ export default function FileIntakePage() {
           <input
             required
             value={form.notesheet_title ?? ''}
-            onChange={(e) => update('notesheet_title', e.target.value)}
-            className="mt-1 block w-full border rounded p-2"
+            onChange={(e) => { update('notesheet_title', e.target.value); if (formErrors.notesheet_title) setFormErrors((s) => ({ ...s, notesheet_title: e.target.value.trim() ? undefined : 'Notesheet title is required' })); }}
+            className={`mt-1 block w-full border rounded p-2 ${formErrors.notesheet_title ? 'border-red-500' : ''}`}
             placeholder="Notesheet title (required by DB)"
           />
+            {formErrors.notesheet_title && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.notesheet_title}</p>
+            )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -276,13 +310,13 @@ export default function FileIntakePage() {
               <option value="Urgent">Urgent</option>
               <option value="Critical">Critical</option>
             </select>
-            <p className="mt-1 text-xs text-gray-600">SLA is auto-selected based on Category + Priority.</p>
+            <p className="mt-1 text-xs text-gray-600">Time limit is auto-selected based on Category + Priority.</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Owning Office</label>
+            <label className="block text-sm font-medium text-gray-700">Office</label>
             <select
               value={form.owning_office_id ?? ''}
               onChange={(e) => update('owning_office_id', e.target.value ? Number(e.target.value) : undefined)}
@@ -295,7 +329,7 @@ export default function FileIntakePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Forward to Officer</label>
+            <label className="block text-sm font-medium text-gray-700">Forward to</label>
             <select
               value={form.forward_to_officer_id ?? ''}
               onChange={(e) => update('forward_to_officer_id', e.target.value ? Number(e.target.value) : undefined)}
@@ -335,18 +369,25 @@ export default function FileIntakePage() {
             <label className="block text-sm font-medium text-gray-700">Date Initiated</label>
             <input
               type="date"
+              ref={dateInitiatedRef}
               value={form.date_initiated ?? ''}
               onChange={(e) => update('date_initiated', e.target.value || undefined)}
-              className="mt-1 block w-full border rounded p-2"
+              onClick={() => openDatePicker(dateInitiatedRef)}
+              className={`mt-1 block w-full border rounded p-2 ${formErrors.date_initiated ? 'border-red-500' : ''}`}
             />
+            {formErrors.date_initiated && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.date_initiated}</p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Date Received (Accounts)</label>
             <input
               type="date"
+              ref={dateReceivedRef}
               value={form.date_received_accounts ?? ''}
               onChange={(e) => update('date_received_accounts', e.target.value || undefined)}
+              onClick={() => openDatePicker(dateReceivedRef)}
               className="mt-1 block w-full border rounded p-2"
             />
           </div>

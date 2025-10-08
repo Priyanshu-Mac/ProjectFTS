@@ -38,10 +38,10 @@ export default function SlaReasonModal({ open, onClose, fileId, onDone }: Props)
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white w-full max-w-md rounded shadow-lg">
         <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold">SLA Breach Reason</h3>
+          <h3 className="text-lg font-semibold">Reason for delay</h3>
         </div>
         <div className="p-4 space-y-3">
-          <p className="text-sm text-gray-600">This file has breached SLA. Please provide the reason.</p>
+          <p className="text-sm text-gray-600">This file missed its time limit. Please write the reason.</p>
           <textarea
             className="w-full min-h-[120px] p-2 border rounded focus:outline-none focus:ring"
             value={reason}

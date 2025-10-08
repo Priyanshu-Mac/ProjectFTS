@@ -148,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
 
       {/* Logo */}
 
-      <div className="flex items-center justify-center h-16 border-b border-slate-200 px-2">
+      <div className="flex items-center justify-center h-16 border-slate-200 px-2">
         <div className="flex items-center gap-2">
           <img src={dtuLogo} alt="DTU Logo" className="h-8 w-8 rounded-full" />
           {!isCollapsed && (
